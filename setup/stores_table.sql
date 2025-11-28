@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS stores (
   pincode text not null,
   latitude double precision,
   longitude double precision,
+  image_url text,
   is_active boolean default true,
   created_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now()

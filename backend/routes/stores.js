@@ -179,7 +179,7 @@ router.get('/:id', async (req, res) => {
 // Create new store (admin only)
 router.post('/create', async (req, res) => {
     try {
-        const { name, email, password, phone, address, pincode, latitude, longitude } = req.body;
+        const { name, email, password, phone, address, pincode, latitude, longitude, image_url } = req.body;
         
         // Validate required fields
         if (!name || !email || !pincode) {
@@ -202,6 +202,7 @@ router.post('/create', async (req, res) => {
                 pincode,
                 latitude: latitude || null,
                 longitude: longitude || null,
+                image_url: image_url || null,
                 is_active: true
             }])
             .select()
@@ -264,7 +265,7 @@ router.post('/create', async (req, res) => {
 // Update store (admin only)
 router.post('/update', async (req, res) => {
     try {
-        const { id, name, email, phone, address, pincode, latitude, longitude, is_active } = req.body;
+        const { id, name, email, phone, address, pincode, latitude, longitude, is_active, image_url } = req.body;
         
         const { data, error } = await supabase
             .from('stores')
@@ -276,6 +277,7 @@ router.post('/update', async (req, res) => {
                 pincode,
                 latitude,
                 longitude,
+                image_url,
                 is_active,
                 updated_at: new Date()
             })

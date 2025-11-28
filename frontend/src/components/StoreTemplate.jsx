@@ -312,9 +312,26 @@ const StoreTemplate = ({
                     <div className="container mx-auto px-4">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                             <div className="flex items-center gap-4">
-                                <div className="bg-white bg-opacity-20 p-4 rounded-2xl">
-                                    <StoreIcon className="w-10 h-10" />
-                                </div>
+                                {(store.hasOwnProperty('image_url') && store.image_url) ? (
+                                    <img 
+                                        src={store.image_url} 
+                                        alt={store.name} 
+                                        className="w-20 h-20 rounded-2xl object-cover border-4 border-white/30 shadow-xl"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.style.display = 'none';
+                                            // Create fallback element
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'bg-white/20 p-4 rounded-2xl';
+                                            fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-12 h-12"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>';
+                                            e.target.parentNode.replaceChild(fallback, e.target);
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="bg-white/20 p-4 rounded-2xl">
+                                        <StoreIcon className="w-12 h-12" />
+                                    </div>
+                                )}
                                 <div>
                                     <h2 className="text-3xl font-bold">{store.name}</h2>
                                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">

@@ -3,11 +3,12 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { supabase } from './services/supabase';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
+import AdminLayout from './components/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Finance from './pages/Finance';
 import Forecast from './pages/Forecast';
-import Predictions from './pages/Predictions';
+// import Predictions from './pages/Predictions';  // Removed prediction page
 import Customers from './pages/Customers';
 import Sales from './pages/Sales';
 import Transactions from './pages/Transactions';
@@ -20,7 +21,7 @@ import StoreFinder from './pages/StoreFinder';
 import StoreProducts from './pages/StoreProducts';
 import StoreProductsAlt from './pages/StoreProductsAlt';
 import AdminStores from './pages/AdminStores';
-import StoreMarketplace from './pages/StoreMarketplace';
+// import StoreMarketplace from './pages/StoreMarketplace';  // Removed marketplace page
 
 function App() {
     const [session, setSession] = useState(null);
@@ -61,17 +62,17 @@ function App() {
                     
                     {/* Protected routes - only accessible to authenticated users */}
                     <Route path="/dashboard" element={session ? <Layout><Dashboard /></Layout> : <Navigate to="/login" />} />
-                    <Route path="/marketplace" element={session ? <Layout><StoreMarketplace /></Layout> : <Navigate to="/login" />} />
+                    {/* <Route path="/marketplace" element={session ? <Layout><StoreMarketplace /></Layout> : <Navigate to="/login" />} /> */} {/* Removed marketplace route */}
                     <Route path="/inventory" element={session ? <Layout><Inventory /></Layout> : <Navigate to="/login" />} />
                     <Route path="/sales" element={session ? <Layout><Sales /></Layout> : <Navigate to="/login" />} />
                     <Route path="/transactions" element={session ? <Layout><Transactions /></Layout> : <Navigate to="/login" />} />
                     <Route path="/customers" element={session ? <Layout><Customers /></Layout> : <Navigate to="/login" />} />
                     <Route path="/finance" element={session ? <Layout><Finance /></Layout> : <Navigate to="/login" />} />
                     <Route path="/forecast" element={session ? <Layout><Forecast /></Layout> : <Navigate to="/login" />} />
-                    <Route path="/predictions" element={session ? <Layout><Predictions /></Layout> : <Navigate to="/login" />} />
+                    {/* <Route path="/predictions" element={session ? <Layout><Predictions /></Layout> : <Navigate to="/login" />} /> */} {/* Removed predictions route */}
                     <Route path="/ml-models" element={session ? <Layout><MLModelsPage /></Layout> : <Navigate to="/login" />} />
                     <Route path="/customer-engagement" element={session ? <Layout><CustomerEngagement /></Layout> : <Navigate to="/login" />} />
-                    <Route path="/admin/stores" element={session ? <Layout><AdminStores /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/admin/stores" element={session ? <AdminLayout><AdminStores /></AdminLayout> : <Navigate to="/login" />} />
                     
                     {/* Redirect unknown routes */}
                     <Route path="*" element={<Navigate to={session ? "/dashboard" : "/"} />} />

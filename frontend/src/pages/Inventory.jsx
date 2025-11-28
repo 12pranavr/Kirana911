@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import api from '../services/api';
-import { Plus, Trash2, Upload, FileSpreadsheet, Download, CheckCircle, AlertCircle, Edit, PackagePlus, PackageMinus, QrCode, BarChart2, X, Filter } from 'lucide-react';
+import { Plus, Trash2, Upload, FileSpreadsheet, Download, CheckCircle, AlertCircle, Edit, PackagePlus, PackageMinus, QrCode, BarChart2, X, Filter, Link as LinkIcon } from 'lucide-react';
 import DemoBarcode from '../components/DemoBarcode';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const Inventory = () => {
     const [products, setProducts] = useState([]);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [showEditForm, setShowEditForm] = useState(false);
+    const [editingProduct, setEditingProduct] = useState(null);
     const [showExcelUpload, setShowExcelUpload] = useState(false);
     const [showStockAdjust, setShowStockAdjust] = useState(null);
     const [stockAdjustment, setStockAdjustment] = useState({ qty: '', reason: '' });
     const [newProduct, setNewProduct] = useState({
-        name: '', sku_id: '', cost_price: '', selling_price: '', category: '', initial_stock: ''
+        name: '', sku_id: '', cost_price: '', selling_price: '', category: '', initial_stock: '', image_url: ''
     });
     const [uploadResult, setUploadResult] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -75,7 +77,7 @@ const Inventory = () => {
         try {
             await api.post('/inventory/add', newProduct);
             setShowAddForm(false);
-            setNewProduct({ name: '', sku_id: '', cost_price: '', selling_price: '', category: '', initial_stock: '' });
+            setNewProduct({ name: '', sku_id: '', cost_price: '', selling_price: '', category: '', initial_stock: '', image_url: '' });
             fetchProducts();
             alert('Product added successfully!');
         } catch (error) {
@@ -91,6 +93,48 @@ const Inventory = () => {
             alert('Product deleted successfully!');
         } catch (error) {
             alert('Failed to delete');
+        }
+    };
+
+    const handleEditProduct = (product) => {
+        setEditingProduct(product);
+        setNewProduct({
+            name: product.name,
+            sku_id: product.sku_id,
+            cost_price: product.cost_price,
+            selling_price: product.selling_price,
+            category: product.category || '',
+            // Note: initial_stock is not part of the product edit, it's managed separately
+            image_url: product.image_url || ''
+        });
+        setShowEditForm(true);
+        setShowAddForm(false);
+    };
+
+    const handleUpdateProduct = async (e) => {
+        e.preventDefault();
+        try {
+            // Prepare data for update (exclude initial_stock)
+            const updateData = {
+                id: editingProduct.id,
+                name: newProduct.name,
+                sku_id: newProduct.sku_id,
+                cost_price: newProduct.cost_price,
+                selling_price: newProduct.selling_price,
+                category: newProduct.category,
+                image_url: newProduct.image_url
+            };
+            
+            console.log('Updating product with data:', updateData);
+            await api.post('/inventory/edit', updateData);
+            setShowEditForm(false);
+            setEditingProduct(null);
+            setNewProduct({ name: '', sku_id: '', cost_price: '', selling_price: '', category: '', initial_stock: '', image_url: '' });
+            fetchProducts();
+            alert('Product updated successfully!');
+        } catch (error) {
+            console.error('Failed to update product:', error);
+            alert('Failed to update product: ' + (error.response?.data?.error || error.message));
         }
     };
 
@@ -178,6 +222,15 @@ Sugar 1kg,SKU003,Essentials,40,50,60`;
     const selectCategory = (category) => {
         setNewProduct({ ...newProduct, category });
         setShowCategorySuggestions(false);
+    };
+
+    // Handle input change for form fields
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewProduct(prev => ({
+            ...prev,
+            [name]: value
+        }));
     };
 
     // Filter products based on filter criteria
@@ -418,13 +471,13 @@ Sugar 1kg,SKU003,Essentials,40,50,60`;
                 </div>
             )}
 
-            {/* Add Product Form */}
-            {showAddForm && (
+            {/* Add/Edit Product Form */}
+            {(showAddForm || showEditForm) && (
                 <div className="card mb-6 bg-blue-50 border-2 border-blue-200">
-                    <h3 className="text-lg font-semibold mb-4 text-blue-800">Add New Product</h3>
-                    <form onSubmit={handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <input placeholder="Product Name *" className="border p-2 rounded" value={newProduct.name} onChange={e => setNewProduct({ ...newProduct, name: e.target.value })} required />
-                        <input placeholder="SKU ID *" className="border p-2 rounded" value={newProduct.sku_id} onChange={e => setNewProduct({ ...newProduct, sku_id: e.target.value })} required />
+                    <h3 className="text-lg font-semibold mb-4 text-blue-800">{showEditForm ? 'Edit Product' : 'Add New Product'}</h3>
+                    <form onSubmit={showEditForm ? handleUpdateProduct : handleAddProduct} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <input placeholder="Product Name *" className="border p-2 rounded" value={newProduct.name} onChange={handleInputChange} name="name" required />
+                        <input placeholder="SKU ID *" className="border p-2 rounded" value={newProduct.sku_id} onChange={handleInputChange} name="sku_id" required />
                         
                         {/* Category with suggestions */}
                         <div className="relative">
@@ -432,7 +485,7 @@ Sugar 1kg,SKU003,Essentials,40,50,60`;
                                 placeholder="Category" 
                                 className="border p-2 rounded w-full" 
                                 value={newProduct.category} 
-                                onChange={e => handleCategoryChange(e.target.value)}
+                                onChange={(e) => handleCategoryChange(e.target.value)}
                                 onFocus={() => setShowCategorySuggestions(true)}
                                 onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 200)}
                             />
@@ -451,12 +504,49 @@ Sugar 1kg,SKU003,Essentials,40,50,60`;
                             )}
                         </div>
                         
-                        <input type="number" step="0.01" placeholder="Cost Price *" className="border p-2 rounded" value={newProduct.cost_price} onChange={e => setNewProduct({ ...newProduct, cost_price: e.target.value })} required />
-                        <input type="number" step="0.01" placeholder="Selling Price *" className="border p-2 rounded" value={newProduct.selling_price} onChange={e => setNewProduct({ ...newProduct, selling_price: e.target.value })} required />
-                        <input type="number" placeholder="Initial Stock" className="border p-2 rounded" value={newProduct.initial_stock} onChange={e => setNewProduct({ ...newProduct, initial_stock: e.target.value })} />
+                        <input type="number" step="0.01" placeholder="Cost Price *" className="border p-2 rounded" value={newProduct.cost_price} onChange={handleInputChange} name="cost_price" required />
+                        <input type="number" step="0.01" placeholder="Selling Price *" className="border p-2 rounded" value={newProduct.selling_price} onChange={handleInputChange} name="selling_price" required />
+                        <input type="number" placeholder="Initial Stock" className="border p-2 rounded" value={newProduct.initial_stock} onChange={handleInputChange} name="initial_stock" />
+                        
+                        {/* Image URL */}
+                        <div className="md:col-span-2 lg:col-span-3">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Product Image URL</label>
+                            <div className="flex items-center">
+                                <div className="relative flex-1">
+                                    <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                    <input
+                                        type="url"
+                                        name="image_url"
+                                        value={newProduct.image_url}
+                                        onChange={handleInputChange}
+                                        placeholder="https://example.com/product-image.jpg"
+                                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                            {newProduct.image_url && (
+                                <div className="mt-2">
+                                    <img 
+                                        src={newProduct.image_url} 
+                                        alt="Product preview" 
+                                        className="w-24 h-24 object-cover rounded-md border border-gray-300"
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.style.display = 'none';
+                                            // Create fallback element
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'bg-gray-100 border-2 border-dashed rounded-md w-24 h-24 flex items-center justify-center';
+                                            fallback.innerHTML = '<span class="text-gray-400 text-sm">Invalid Image URL</span>';
+                                            e.target.parentNode.replaceChild(fallback, e.target);
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        
                         <div className="md:col-span-2 lg:col-span-3 flex justify-end gap-2">
-                            <button type="button" onClick={() => setShowAddForm(false)} className="btn bg-gray-300 hover:bg-gray-400">Cancel</button>
-                            <button type="submit" className="btn btn-primary">Save Product</button>
+                            <button type="button" onClick={() => { setShowAddForm(false); setShowEditForm(false); setEditingProduct(null); }} className="btn bg-gray-300 hover:bg-gray-400">Cancel</button>
+                            <button type="submit" className="btn btn-primary">{showEditForm ? 'Update Product' : 'Save Product'}</button>
                         </div>
                     </form>
                 </div>
@@ -526,8 +616,29 @@ Sugar 1kg,SKU003,Essentials,40,50,60`;
                             <React.Fragment key={product.id}>
                                 <tr className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                                        <div className="text-sm text-gray-500">{product.sku_id}</div>
+                                        <div className="flex items-center">
+                                            {(product.hasOwnProperty('image_url') && product.image_url) ? (
+                                                <img 
+                                                    src={product.image_url} 
+                                                    alt={product.name} 
+                                                    className="w-10 h-10 object-cover rounded mr-3"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.style.display = 'none';
+                                                        // Create fallback element
+                                                        const fallback = document.createElement('div');
+                                                        fallback.className = 'bg-gray-200 border-2 border-dashed rounded-xl w-10 h-10 mr-3';
+                                                        e.target.parentNode.replaceChild(fallback, e.target);
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="bg-gray-200 border-2 border-dashed rounded-xl w-10 h-10 mr-3" />
+                                            )}
+                                            <div>
+                                                <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                                                <div className="text-sm text-gray-500">{product.sku_id}</div>
+                                            </div>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category || '-'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -561,11 +672,18 @@ Sugar 1kg,SKU003,Essentials,40,50,60`;
                                                 <QrCode className="w-5 h-5" />
                                             </button>
                                             <button
+                                                onClick={() => handleEditProduct(product)}
+                                                className="text-green-600 hover:text-green-900"
+                                                title="Edit Product"
+                                            >
+                                                <Edit className="w-5 h-5" />
+                                            </button>
+                                            <button
                                                 onClick={() => setShowStockAdjust(showStockAdjust === product.id ? null : product.id)}
                                                 className="text-blue-600 hover:text-blue-900"
                                                 title="Adjust Stock"
                                             >
-                                                <Edit className="w-5 h-5" />
+                                                <PackagePlus className="w-5 h-5" />
                                             </button>
                                             <button onClick={() => handleDelete(product.id)} className="text-red-600 hover:text-red-900" title="Delete">
                                                 <Trash2 className="w-5 h-5" />

@@ -115,7 +115,7 @@ router.get('/product/:id/report', async (req, res) => {
 // Add product
 router.post('/add', async (req, res) => {
     try {
-        const { name, sku_id, cost_price, selling_price, category, initial_stock } = req.body;
+        const { name, sku_id, cost_price, selling_price, category, initial_stock, image_url } = req.body;
 
         // Validate required fields
         if (!name || !sku_id || !cost_price || !selling_price) {
@@ -143,6 +143,7 @@ router.post('/add', async (req, res) => {
                 cost_price: costPriceNum,
                 selling_price: sellingPriceNum,
                 category: category || 'General',
+                image_url: image_url || null,
                 active: true,
                 store_id: userStore.store_id // Associate product with the owner's store
             }])
@@ -239,6 +240,60 @@ router.post('/update_stock', async (req, res) => {
         }]);
 
         res.json({ message: 'Stock updated', new_stock: newStock });
+    } catch (error) {
+        if (error.message.includes('Authorization header')) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Edit product
+router.post('/edit', async (req, res) => {
+    const { id, name, sku_id, cost_price, selling_price, category, image_url } = req.body;
+    
+    try {
+        // Get user's store information
+        const userStore = await getUserStore(req);
+        
+        // Only owners can edit products, and they must have a store
+        if (userStore.role !== 'owner' || !userStore.store_id) {
+            return res.status(403).json({ error: 'Only store owners can edit products' });
+        }
+        
+        // Verify the product belongs to this store
+        const { data: product, error: productError } = await supabase
+            .from('products')
+            .select('store_id')
+            .eq('id', id)
+            .single();
+            
+        if (productError) return res.status(500).json({ error: productError.message });
+        
+        if (product.store_id !== userStore.store_id) {
+            return res.status(403).json({ error: 'You can only edit your own products' });
+        }
+        
+        // Convert prices to numbers
+        const costPriceNum = parseFloat(cost_price);
+        const sellingPriceNum = parseFloat(selling_price);
+        
+        const { data, error } = await supabase
+            .from('products')
+            .update({
+                name,
+                sku_id,
+                cost_price: costPriceNum,
+                selling_price: sellingPriceNum,
+                category: category || 'General',
+                image_url: image_url || null
+            })
+            .eq('id', id)
+            .select()
+            .single();
+            
+        if (error) return res.status(500).json({ error: error.message });
+        res.json({ message: 'Product updated successfully', product: data });
     } catch (error) {
         if (error.message.includes('Authorization header')) {
             return res.status(401).json({ error: 'Authentication required' });

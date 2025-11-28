@@ -21,6 +21,7 @@ create table products (
   selling_price float not null,
   reorder_point int default 10,
   supplier_info text,
+  image_url text,
   active boolean default true,
   created_at timestamp with time zone default now()
 );

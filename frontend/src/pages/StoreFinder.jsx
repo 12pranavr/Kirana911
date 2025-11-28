@@ -3,6 +3,7 @@ import { Search, MapPin, Phone, Star, Clock, Store, Package, TrendingUp, Shoppin
 import storesService from '../services/stores';
 import { useNavigate } from 'react-router-dom';
 import PremiumProductCard from '../components/PremiumProductCard';
+import CartPreview from '../components/CartPreview';
 import api from '../services/api';
 
 const StoreFinder = () => {
@@ -55,7 +56,8 @@ const StoreFinder = () => {
                     const productsWithStoreInfo = products.map(product => ({
                         ...product,
                         storeId: store.id,
-                        storeName: store.name
+                        storeName: store.name,
+                        storeImageUrl: store.image_url // Add store image URL to product
                     }));
                     allStoreProducts.push(...productsWithStoreInfo);
                 } catch (err) {
@@ -106,6 +108,11 @@ const StoreFinder = () => {
         return cart.reduce((total, item) => total + item.quantity, 0);
     };
 
+    // Calculate total
+    const calculateTotal = () => {
+        return cart.reduce((sum, item) => sum + ((item.selling_price || item.price || 0) * item.quantity), 0);
+    };
+
     // Add to cart
     const addToCart = (product) => {
         const stock = product.stock_levels?.[0]?.current_stock || product.stock || 0;
@@ -145,11 +152,6 @@ const StoreFinder = () => {
     // Remove from cart
     const removeFromCart = (productId) => {
         setCart(prevCart => prevCart.filter(item => item.id !== productId));
-    };
-
-    // Calculate total
-    const calculateTotal = () => {
-        return cart.reduce((sum, item) => sum + ((item.selling_price || item.price || 0) * item.quantity), 0);
     };
 
     // Group cart items by store
@@ -322,7 +324,7 @@ const StoreFinder = () => {
                                             </div>
                                             <div className="w-full bg-gray-200 rounded-full h-2.5">
                                                 <div 
-                                                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300" 
+                                                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full transition-all duration-300" 
                                                     style={{ width: `${(currentOrderIndex / Object.keys(getCartItemsByStore()).length) * 100}%` }}
                                                 ></div>
                                             </div>
@@ -382,7 +384,7 @@ const StoreFinder = () => {
                                     <button
                                         type="button"
                                         onClick={closeOrderProgress}
-                                        className="w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300"
+                                        className="w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-base font-bold text-white hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5"
                                     >
                                         OK
                                     </button>
@@ -393,143 +395,19 @@ const StoreFinder = () => {
                 </div>
             )}
 
-            {/* Cart Sidebar */}
-            {showCart && (
-                <div className="fixed inset-0 z-50 overflow-hidden">
-                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowCart(false)}></div>
-                    <div className="absolute inset-y-0 right-0 max-w-full flex">
-                        <div className="relative w-screen max-w-md">
-                            <div className="h-full flex flex-col bg-white shadow-xl rounded-l-2xl">
-                                <div className="flex-1 overflow-y-auto py-6 px-6 sm:px-6">
-                                    <div className="flex items-start justify-between">
-                                        <h2 className="text-2xl font-bold text-gray-900">Your Shopping Cart</h2>
-                                        <button 
-                                            onClick={() => setShowCart(false)}
-                                            className="ml-3 h-8 w-8 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors"
-                                        >
-                                            <X className="h-5 w-5" />
-                                        </button>
-                                    </div>
-
-                                    <div className="mt-8">
-                                        {cart.length === 0 ? (
-                                            <div className="text-center py-16">
-                                                <div className="bg-gray-100 p-5 rounded-2xl w-24 h-24 mx-auto flex items-center justify-center mb-6">
-                                                    <ShoppingCart className="mx-auto h-10 w-10 text-gray-400" />
-                                                </div>
-                                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Your cart is empty</h3>
-                                                <p className="text-gray-500 mb-6">Start adding some products to your cart</p>
-                                                <button
-                                                    onClick={() => setShowCart(false)}
-                                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 font-medium"
-                                                >
-                                                    Continue Shopping
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flow-root">
-                                                {/* Group items by store */}
-                                                {Object.entries(getCartItemsByStore()).map(([storeId, storeData]) => (
-                                                    <div key={storeId} className="mb-8 border-b border-gray-200 pb-8 last:border-0 last:pb-0">
-                                                        <div className="flex items-center mb-4">
-                                                            <Store className="w-5 h-5 text-gray-500 mr-2" />
-                                                            <h3 className="font-bold text-gray-900">{storeData.store?.name || 'Unknown Store'}</h3>
-                                                        </div>
-                                                        <ul className="space-y-6">
-                                                            {storeData.items.map((item) => (
-                                                                <li key={item.id} className="flex py-2">
-                                                                    <div className="ml-4 flex-1 flex flex-col">
-                                                                        <div>
-                                                                            <div className="flex justify-between text-base font-medium text-gray-900">
-                                                                                <h4 className="font-medium">{item.name}</h4>
-                                                                                <p className="ml-4 font-bold">₹{((item.selling_price || item.price || 0) * item.quantity).toFixed(2)}</p>
-                                                                            </div>
-                                                                            <p className="mt-1 text-sm text-gray-500">₹{item.selling_price || item.price || 0} each</p>
-                                                                        </div>
-                                                                        <div className="flex-1 flex items-end justify-between text-sm mt-2">
-                                                                            <div className="flex items-center border border-gray-200 rounded-xl">
-                                                                                <button
-                                                                                    onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                                                                                    className="px-3 py-1 text-gray-600 hover:text-gray-800 rounded-l-xl hover:bg-gray-50 transition-colors"
-                                                                                >
-                                                                                    <Minus className="h-4 w-4" />
-                                                                                </button>
-                                                                                <span className="px-3 py-1 font-medium">{item.quantity}</span>
-                                                                                <button
-                                                                                    onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                                                                                    className="px-3 py-1 text-gray-600 hover:text-gray-800 rounded-r-xl hover:bg-gray-50 transition-colors"
-                                                                                >
-                                                                                    <Plus className="h-4 w-4" />
-                                                                                </button>
-                                                                            </div>
-
-                                                                            <button
-                                                                                onClick={() => removeFromCart(item.id)}
-                                                                                type="button"
-                                                                                className="font-medium text-red-600 hover:text-red-500 transition-colors"
-                                                                            >
-                                                                                Remove
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                        <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between">
-                                                            <span className="font-medium text-gray-900">Store Total:</span>
-                                                            <span className="font-bold text-gray-900">₹{calculateStoreSubtotal(storeData.items).toFixed(2)}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {cart.length > 0 && (
-                                    <div className="border-t border-gray-200 py-6 px-6 sm:px-6">
-                                        <div className="flex justify-between text-base font-bold text-gray-900 mb-2">
-                                            <p>Total</p>
-                                            <p>₹{calculateTotal().toFixed(2)}</p>
-                                        </div>
-                                        <p className="text-sm text-gray-500 mb-6">Shipping and taxes calculated at checkout.</p>
-                                        <div className="mt-2">
-                                            <button
-                                                onClick={handlePlaceOrder}
-                                                disabled={isPlacingOrders}
-                                                className={`w-full bg-blue-600 border border-transparent rounded-xl shadow-lg py-4 px-4 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 transform hover:-translate-y-0.5 ${
-                                                    isPlacingOrders ? 'opacity-50 cursor-not-allowed' : ''
-                                                }`}
-                                            >
-                                                {isPlacingOrders ? (
-                                                    <div className="flex items-center justify-center">
-                                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                        </svg>
-                                                        Placing Orders...
-                                                    </div>
-                                                ) : (
-                                                    'Proceed to Checkout'
-                                                )}
-                                            </button>
-                                        </div>
-                                        <div className="mt-4 flex justify-center text-sm text-center text-gray-500">
-                                            <button
-                                                type="button"
-                                                className="text-blue-600 font-semibold hover:text-blue-500 transition-colors"
-                                                onClick={() => setShowCart(false)}
-                                            >
-                                                Continue Shopping<span aria-hidden="true"> &rarr;</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Cart Preview Component */}
+            <CartPreview
+                isOpen={showCart}
+                onClose={() => setShowCart(false)}
+                cartItems={cart}
+                onUpdateQuantity={updateCartQuantity}
+                onRemoveItem={removeFromCart}
+                onCheckout={() => {
+                    setShowCart(false);
+                    setShowCustomerForm(true);
+                }}
+                totalAmount={calculateTotal()}
+            />
 
             {/* Customer Form Modal */}
             {showCustomerForm && (
@@ -595,10 +473,22 @@ const StoreFinder = () => {
                                                 {Object.entries(getCartItemsByStore()).map(([storeId, storeData]) => (
                                                     <div key={storeId} className="mb-4 pb-4 border-b border-gray-200 last:border-0 last:pb-0 last:mb-0">
                                                         <div className="flex items-center justify-between mb-2">
-                                                            <div className="flex items-center">
-                                                                <Store className="w-4 h-4 text-gray-500 mr-2" />
-                                                                <span className="font-medium text-gray-900">{storeData.store?.name || 'Unknown Store'}</span>
+                                                            {/* Store Image */}
+                                                            {storeData.store?.image_url ? (
+                                                                <img 
+                                                                    src={storeData.store.image_url} 
+                                                                    alt={storeData.store.name} 
+                                                                    className="w-6 h-6 rounded-full object-cover mr-2"
+                                                                    onError={(e) => {
+                                                                        e.target.style.display = 'none';
+                                                                        e.target.nextSibling.style.display = 'flex';
+                                                                    }}
+                                                                />
+                                                            ) : null}
+                                                            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-1 rounded-full mr-2">
+                                                                <Store className="w-3 h-3 text-white" />
                                                             </div>
+                                                            <span className="font-medium text-gray-900">{storeData.store?.name || 'Unknown Store'}</span>
                                                             <span className="font-bold text-gray-900">₹{calculateStoreSubtotal(storeData.items).toFixed(2)}</span>
                                                         </div>
                                                         
@@ -627,7 +517,7 @@ const StoreFinder = () => {
                                     type="button"
                                     onClick={handlePlaceOrder}
                                     disabled={isPlacingOrders}
-                                    className={`w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5 ${
+                                    className={`w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-base font-bold text-white hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5 ${
                                         isPlacingOrders ? 'opacity-50 cursor-not-allowed' : ''
                                     }`}
                                 >
@@ -663,19 +553,19 @@ const StoreFinder = () => {
             <header className="bg-white/80 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-40">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <div className="bg-blue-600 p-2 rounded-xl">
+                        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-2 rounded-xl shadow-lg">
                             <Store className="w-6 h-6 text-white" />
                         </div>
-                        <span className="text-2xl font-bold text-gray-900">Kirana<span className="text-blue-600">Store</span></span>
+                        <span className="text-2xl font-bold text-gray-900">Kirana<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-700">Store</span></span>
                     </div>
                     <div className="flex items-center gap-4">
                         <button 
                             onClick={() => setShowCart(true)}
-                            className="relative p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                            className="relative p-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                         >
                             <ShoppingCart className="w-6 h-6" />
                             {getCartItemCount() > 0 && (
-                                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg">
+                                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg">
                                     {getCartItemCount()}
                                 </span>
                             )}
@@ -687,34 +577,30 @@ const StoreFinder = () => {
             {/* Hero Section */}
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white py-16">
                 <div className="container mx-auto px-4 text-center">
-                    <h2 className="text-4xl md:text-5xl font-bold mb-6">Find Your Nearest Kirana Store</h2>
+                    <h1 className="text-4xl md:text-5xl font-bold mb-6">Find Your Nearest Kirana Store</h1>
                     <p className="text-xl mb-8 max-w-2xl mx-auto">Enter your pincode to discover stores near you and start shopping instantly</p>
-                </div>
-            </div>
-
-            {/* Search Section */}
-            <div className="container mx-auto px-4 py-12">
-                <div className="max-w-2xl mx-auto">
-                    <form onSubmit={handleSearch} className="mb-12">
+                    
+                    {/* Search Form */}
+                    <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
                         <div className="flex flex-col sm:flex-row gap-4">
                             <div className="flex-1 relative">
-                                <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70 w-5 h-5" />
                                 <input
                                     type="text"
                                     value={pincode}
                                     onChange={(e) => setPincode(e.target.value)}
                                     placeholder="Enter your pincode"
-                                    className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg shadow-sm focus:shadow-md transition-all"
+                                    className="w-full pl-12 pr-4 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-white/70 shadow-lg transition-all"
                                 />
                             </div>
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                className="px-8 py-4 bg-white text-blue-600 rounded-xl hover:bg-gray-100 transition-all duration-300 font-semibold flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                             >
                                 {loading ? (
                                     <>
-                                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
@@ -729,18 +615,21 @@ const StoreFinder = () => {
                             </button>
                         </div>
                     </form>
-
-                    {error && (
-                        <div className="bg-red-100 text-red-700 p-6 rounded-2xl mb-8 shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-red-200 p-2 rounded-lg">
-                                    <Store className="w-5 h-5 text-red-700" />
-                                </div>
-                                <span className="font-medium">{error}</span>
-                            </div>
-                        </div>
-                    )}
                 </div>
+            </div>
+
+            {/* Search Results Section */}
+            <div className="container mx-auto px-4 py-12">
+                {error && (
+                    <div className="bg-red-100 text-red-700 p-6 rounded-2xl mb-8 shadow-sm max-w-2xl mx-auto">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-red-200 p-2 rounded-lg">
+                                <Store className="w-5 h-5 text-red-700" />
+                            </div>
+                            <span className="font-medium">{error}</span>
+                        </div>
+                    </div>
+                )}
 
                 {/* Results Section */}
                 {stores.length > 0 && (
@@ -749,9 +638,9 @@ const StoreFinder = () => {
                         <div className="mb-16">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                                 <div>
-                                    <h3 className="text-3xl font-bold text-gray-900">
+                                    <h2 className="text-3xl font-bold text-gray-900">
                                         Found {stores.length} store{stores.length !== 1 ? 's' : ''} near {pincode}
-                                    </h3>
+                                    </h2>
                                     <p className="text-gray-600 mt-2">Choose your preferred store or browse all products below</p>
                                 </div>
                                 <div className="flex gap-3">
@@ -766,35 +655,53 @@ const StoreFinder = () => {
                                 </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Modern Store Cards Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {stores.map(store => (
                                     <div 
                                         key={store.id} 
-                                        className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 group overflow-hidden"
+                                        className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 group overflow-hidden transform hover:-translate-y-1"
                                     >
+                                        {/* Store Image Header */}
+                                        <div className="relative h-48 overflow-hidden">
+                                            {store.image_url ? (
+                                                <img 
+                                                    src={store.image_url} 
+                                                    alt={store.name} 
+                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.parentElement.innerHTML = '<div class="bg-gradient-to-r from-blue-400 to-indigo-500 w-full h-full flex items-center justify-center"><Store className="w-12 h-12 text-white" /></div>';
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="bg-gradient-to-r from-blue-400 to-indigo-500 w-full h-full flex items-center justify-center">
+                                                    <Store className="w-12 h-12 text-white" />
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                                            <div className="absolute bottom-4 left-4">
+                                                <h3 className="font-bold text-xl text-white group-hover:text-blue-200 transition-colors">{store.name}</h3>
+                                            </div>
+                                        </div>
+                                        
                                         <div className="p-6">
                                             <div className="flex justify-between items-start mb-4">
-                                                <h3 className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors">{store.name}</h3>
                                                 <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
                                                     {store.pincode}
                                                 </span>
+                                                <div className="flex items-center bg-yellow-100 px-2 py-1 rounded-lg">
+                                                    <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                                                    <span className="text-sm text-gray-700 ml-1 font-semibold">4.8</span>
+                                                </div>
                                             </div>
                                             
                                             <div className="flex items-start mb-4">
                                                 <MapPin className="w-5 h-5 text-gray-500 mr-3 mt-0.5 flex-shrink-0" />
-                                                <p className="text-gray-600">{store.address}</p>
+                                                <p className="text-gray-600 text-sm">{store.address}</p>
                                             </div>
                                             
                                             <div className="flex items-center justify-between mb-6">
-                                                <div className="flex items-center">
-                                                    <div className="bg-yellow-100 p-2 rounded-lg">
-                                                        <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                                                    </div>
-                                                    <div className="ml-3">
-                                                        <div className="font-semibold text-gray-900">4.8</div>
-                                                        <div className="text-xs text-gray-500">Rating</div>
-                                                    </div>
-                                                </div>
                                                 <div className="flex items-center">
                                                     <div className="bg-green-100 p-2 rounded-lg">
                                                         <Clock className="w-5 h-5 text-green-600" />
@@ -804,18 +711,29 @@ const StoreFinder = () => {
                                                         <div className="text-xs text-gray-500">Delivery</div>
                                                     </div>
                                                 </div>
+                                                <div className="flex items-center">
+                                                    <div className="bg-blue-100 p-2 rounded-lg">
+                                                        <Phone className="w-5 h-5 text-blue-600" />
+                                                    </div>
+                                                    <div className="ml-3">
+                                                        <div className="font-semibold text-gray-900 text-sm">{store.phone}</div>
+                                                        <div className="text-xs text-gray-500">Contact</div>
+                                                    </div>
+                                                </div>
                                             </div>
                                             
-                                            <div className="flex items-center justify-between">
-                                                <div className="text-gray-600 flex items-center">
-                                                    <Phone className="w-4 h-4 mr-2" />
-                                                    {store.phone}
-                                                </div>
+                                            <div className="flex gap-3">
                                                 <button 
                                                     onClick={() => toggleStoreDetails(store.id)}
-                                                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-300 font-semibold text-sm shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                                                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-300 font-medium text-sm"
                                                 >
                                                     {expandedStore === store.id ? 'Hide Details' : 'View Details'}
+                                                </button>
+                                                <button 
+                                                    onClick={() => navigate(`/store/${store.id}/products`)}
+                                                    className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 transition-all duration-300 font-medium text-sm shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                                >
+                                                    Shop Now
                                                 </button>
                                             </div>
                                             
@@ -842,7 +760,7 @@ const StoreFinder = () => {
                         <div>
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                                 <div>
-                                    <h3 className="text-3xl font-bold text-gray-900">All Products</h3>
+                                    <h2 className="text-3xl font-bold text-gray-900">All Products</h2>
                                     <p className="text-gray-600 mt-2">Browse products from all nearby stores</p>
                                 </div>
                             </div>

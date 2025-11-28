@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import storesService from '../services/stores';
-import { Plus, Edit, Trash2, Store, MapPin, Phone, Mail, Lock } from 'lucide-react';
+import { Plus, Edit, Trash2, Store, MapPin, Phone, Mail, Link as LinkIcon, X } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -18,7 +18,8 @@ const AdminStores = () => {
         address: '',
         pincode: '',
         latitude: '',
-        longitude: ''
+        longitude: '',
+        image_url: ''
     });
     const [userRole, setUserRole] = useState(null);
     const navigate = useNavigate();
@@ -90,19 +91,23 @@ const AdminStores = () => {
         try {
             if (editingStore) {
                 // Update existing store
-                await storesService.updateStore({
+                const storeData = {
                     id: editingStore.id,
                     ...formData,
                     latitude: formData.latitude ? parseFloat(formData.latitude) : null,
                     longitude: formData.longitude ? parseFloat(formData.longitude) : null
-                });
+                };
+                
+                await storesService.updateStore(storeData);
             } else {
                 // Create new store
-                const result = await storesService.createStore({
+                const storeData = {
                     ...formData,
                     latitude: formData.latitude ? parseFloat(formData.latitude) : null,
                     longitude: formData.longitude ? parseFloat(formData.longitude) : null
-                });
+                };
+                
+                const result = await storesService.createStore(storeData);
                 
                 // Show credentials to admin
                 alert(`Store created successfully!\nOwner credentials:\nEmail: ${result.owner_credentials.email}\nPassword: ${result.owner_credentials.password}`);
@@ -117,7 +122,8 @@ const AdminStores = () => {
                 address: '',
                 pincode: '',
                 latitude: '',
-                longitude: ''
+                longitude: '',
+                image_url: ''
             });
             setEditingStore(null);
             setShowForm(false);
@@ -138,7 +144,8 @@ const AdminStores = () => {
             address: store.address || '',
             pincode: store.pincode,
             latitude: store.latitude || '',
-            longitude: store.longitude || ''
+            longitude: store.longitude || '',
+            image_url: store.image_url || ''
         });
         setShowForm(true);
     };
@@ -166,7 +173,8 @@ const AdminStores = () => {
             address: '',
             pincode: '',
             latitude: '',
-            longitude: ''
+            longitude: '',
+            image_url: ''
         });
         setEditingStore(null);
         setShowForm(false);
@@ -245,7 +253,7 @@ const AdminStores = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
                                     <div className="relative">
-                                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                         <input
                                             type="password"
                                             name="password"
@@ -317,6 +325,42 @@ const AdminStores = () => {
                                     />
                                 </div>
                             </div>
+                            
+                            {/* Image URL */}
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Store Image URL</label>
+                                <div className="flex items-center">
+                                    <div className="relative flex-1">
+                                        <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                        <input
+                                            type="url"
+                                            name="image_url"
+                                            value={formData.image_url}
+                                            onChange={handleInputChange}
+                                            placeholder="https://example.com/store-image.jpg"
+                                            className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
+                                {formData.image_url && (
+                                    <div className="mt-2">
+                                        <img 
+                                            src={formData.image_url} 
+                                            alt="Store preview" 
+                                            className="w-24 h-24 object-cover rounded-md border border-gray-300"
+                                            onError={(e) => {
+                                                e.target.onerror = null;
+                                                e.target.style.display = 'none';
+                                                // Create fallback element
+                                                const fallback = document.createElement('div');
+                                                fallback.className = 'bg-gray-100 border-2 border-dashed rounded-md w-24 h-24 flex items-center justify-center';
+                                                fallback.innerHTML = '<span class="text-gray-400 text-sm">Invalid Image URL</span>';
+                                                e.target.parentNode.replaceChild(fallback, e.target);
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                         <div className="flex justify-end gap-3 pt-4">
                             <button
@@ -373,7 +417,24 @@ const AdminStores = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                                                    <Store className="h-6 w-6 text-blue-600" />
+                                                    {(store.hasOwnProperty('image_url') && store.image_url) ? (
+                                                        <img 
+                                                            src={store.image_url} 
+                                                            alt={store.name} 
+                                                            className="h-10 w-10 rounded-full object-cover"
+                                                            onError={(e) => {
+                                                                e.target.onerror = null;
+                                                                e.target.style.display = 'none';
+                                                                // Create fallback element
+                                                                const fallback = document.createElement('div');
+                                                                fallback.className = 'flex items-center justify-center';
+                                                                fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6 text-blue-600"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></svg>';
+                                                                e.target.parentNode.replaceChild(fallback, e.target);
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <Store className="h-6 w-6 text-blue-600" />
+                                                    )}
                                                 </div>
                                                 <div className="ml-4">
                                                     <div className="text-sm font-medium text-gray-900">{store.name}</div>

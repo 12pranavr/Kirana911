@@ -2,32 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { 
-    LayoutDashboard, 
-    Package, 
-    ShoppingCart, 
-    Users, 
-    DollarSign, 
-    TrendingUp, 
-    BarChart3, 
-    UserCheck, 
     Store,
     LogOut,
     Moon,
     Sun,
     Menu,
-    X,
-    Receipt,
-    Globe
+    X
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import ChatWidget from './ChatWidget';
 
-const Layout = ({ children }) => {
+const AdminLayout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [userRole, setUserRole] = useState(null);
     const [userName, setUserName] = useState('');
 
     useEffect(() => {
@@ -35,15 +24,14 @@ const Layout = ({ children }) => {
             try {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    // Get user role from users table
+                    // Get user name from users table
                     const { data: userData, error } = await supabase
                         .from('users')
-                        .select('role, name')
+                        .select('name')
                         .eq('email', user.email)
                         .single();
                     
                     if (!error && userData) {
-                        setUserRole(userData.role);
                         setUserName(userData.name || user.email);
                     }
                 }
@@ -55,28 +43,15 @@ const Layout = ({ children }) => {
         fetchUserData();
     }, []);
 
-    // Different navigation items based on user role
-    const navItems = userRole === 'admin' 
-        ? [
-            { path: '/admin/stores', label: 'Store Management', icon: Store },
-        ]
-        : [
-            { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            // { path: '/marketplace', label: 'Marketplace', icon: Globe },  // Removed marketplace
-            { path: '/sales', label: 'New Sale', icon: ShoppingCart },
-            { path: '/transactions', label: 'Transactions', icon: Receipt },
-            { path: '/inventory', label: 'Inventory', icon: Package },
-            { path: '/customers', label: 'Customers', icon: Users },
-            { path: '/finance', label: 'Finance', icon: DollarSign },
-            { path: '/forecast', label: 'Forecast', icon: TrendingUp },
-            // { path: '/predictions', label: 'Predictions', icon: BarChart3 },  // Removed predictions
-            { path: '/customer-engagement', label: 'Engagement', icon: UserCheck },
-        ];
-
     const handleLogout = async () => {
         await supabase.auth.signOut();
         window.location.href = '/login';
     };
+
+    // Navigation items for admin
+    const navItems = [
+        { path: '/admin/stores', label: 'Store Management', icon: Store },
+    ];
 
     return (
         <div className="flex h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
@@ -120,12 +95,12 @@ const Layout = ({ children }) => {
                         <div className="flex items-center">
                             <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
                                 <span className="text-white text-sm font-medium">
-                                    {userName ? userName.charAt(0).toUpperCase() : 'U'}
+                                    {userName ? userName.charAt(0).toUpperCase() : 'A'}
                                 </span>
                             </div>
                             <div className="ml-3">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">{userName || 'User'}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userRole || 'owner'}</p>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">{userName || 'Admin'}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
                             </div>
                         </div>
                     </div>
@@ -197,4 +172,4 @@ const Layout = ({ children }) => {
     );
 };
 
-export default Layout;
+export default AdminLayout;

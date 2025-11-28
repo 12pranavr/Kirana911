@@ -6,13 +6,15 @@ import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, X
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
-    <div className="card flex items-center justify-between">
-        <div>
-            <p className="text-gray-500 text-sm">{title}</p>
-            <h3 className="text-2xl font-bold mt-1">{value}</h3>
-        </div>
-        <div className={`p-3 rounded-full ${color}`}>
-            <Icon className="w-6 h-6 text-white" />
+    <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+        <div className="flex items-center justify-between">
+            <div>
+                <p className="text-gray-500 text-sm font-medium">{title}</p>
+                <h3 className="text-2xl font-bold mt-1">{value}</h3>
+            </div>
+            <div className={`p-3 rounded-xl ${color} shadow-lg`}>
+                <Icon className="w-6 h-6 text-white" />
+            </div>
         </div>
     </div>
 );
@@ -88,34 +90,40 @@ const Dashboard = () => {
                     title="Total Revenue"
                     value={`₹${stats.revenue.toLocaleString()}`}
                     icon={DollarSign}
-                    color="bg-green-500"
+                    color="bg-gradient-to-r from-green-500 to-emerald-600"
                 />
                 <StatCard
                     title="Net Profit"
                     value={`₹${stats.profit.toLocaleString()}`}
                     icon={TrendingUp}
-                    color="bg-blue-500"
+                    color="bg-gradient-to-r from-blue-500 to-indigo-600"
                 />
                 <StatCard
                     title="Low Stock Items"
                     value={stats.lowStockCount}
                     icon={AlertTriangle}
-                    color="bg-red-500"
+                    color="bg-gradient-to-r from-red-500 to-orange-600"
                 />
                 <StatCard
                     title="Total Products"
                     value={analytics.totalProducts}
                     icon={Package}
-                    color="bg-purple-500"
+                    color="bg-gradient-to-r from-purple-500 to-fuchsia-600"
                 />
             </div>
 
             {/* Sales Trend Chart */}
-            <div className="card">
-                <h3 className="text-lg font-semibold mb-4 text-gray-700">📈 Sales Trend (Last 14 Days)</h3>
+            <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+                <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                    Sales Trend (Last 14 Days)
+                </h3>
                 {loading ? (
                     <div className="h-64 flex items-center justify-center text-gray-400">
-                        Loading chart...
+                        <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-3"></div>
+                            Loading chart...
+                        </div>
                     </div>
                 ) : salesTrend.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
@@ -177,8 +185,11 @@ const Dashboard = () => {
             {/* Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Category Distribution Pie Chart */}
-                <div className="card">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-700">🥧 Product Categories</h3>
+                <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                        <Package className="w-5 h-5 text-purple-500" />
+                        Product Categories
+                    </h3>
                     {analytics.categoryDistribution.length > 0 ? (
                         <ResponsiveContainer width="100%" height={300}>
                             <PieChart>
@@ -207,8 +218,11 @@ const Dashboard = () => {
                 </div>
 
                 {/* Top Products Bar Chart */}
-                <div className="card">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-700">🏆 Top Selling Products</h3>
+                <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                        <ShoppingCart className="w-5 h-5 text-green-500" />
+                        Top Selling Products
+                    </h3>
                     {analytics.topProducts.length > 0 ? (
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart data={analytics.topProducts}>
@@ -235,37 +249,43 @@ const Dashboard = () => {
 
             {/* Additional Info Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="card">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-700">📊 Quick Insights</h3>
+                <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-blue-500" />
+                        Quick Insights
+                    </h3>
                     <div className="space-y-3">
-                        <div className="flex justify-between items-center p-3 bg-blue-50 rounded-md">
+                        <div className="flex justify-between items-center p-3 bg-blue-50 rounded-xl">
                             <span className="text-sm text-gray-700">Total Products</span>
                             <span className="font-bold text-blue-600">{analytics.totalProducts}</span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-green-50 rounded-md">
+                        <div className="flex justify-between items-center p-3 bg-green-50 rounded-xl">
                             <span className="text-sm text-gray-700">Total Customers</span>
                             <span className="font-bold text-green-600">{analytics.totalCustomers}</span>
                         </div>
-                        <div className="flex justify-between items-center p-3 bg-orange-50 rounded-md">
+                        <div className="flex justify-between items-center p-3 bg-orange-50 rounded-xl">
                             <span className="text-sm text-gray-700">Avg Order Value</span>
                             <span className="font-bold text-orange-600">₹{analytics.avgOrderValue.toFixed(2)}</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="card">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-700">💡 Quick Actions</h3>
+                <div className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                        <Users className="w-5 h-5 text-purple-500" />
+                        Quick Actions
+                    </h3>
                     <div className="space-y-2">
-                        <a href="/inventory" className="block p-3 bg-indigo-50 hover:bg-indigo-100 rounded-md text-indigo-700 font-medium transition-colors">
+                        <a href="/inventory" className="block p-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 rounded-xl text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
                             → Add New Product
                         </a>
-                        <a href="/customers" className="block p-3 bg-green-50 hover:bg-green-100 rounded-md text-green-700 font-medium transition-colors">
+                        <a href="/customers" className="block p-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
                             → Add New Customer
                         </a>
-                        <a href="/finance" className="block p-3 bg-blue-50 hover:bg-blue-100 rounded-md text-blue-700 font-medium transition-colors">
+                        <a href="/finance" className="block p-3 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 rounded-xl text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
                             → View Finance Reports
                         </a>
-                        <a href="/forecast" className="block p-3 bg-purple-50 hover:bg-purple-100 rounded-md text-purple-700 font-medium transition-colors">
+                        <a href="/forecast" className="block p-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 rounded-xl text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
                             → View Demand Forecast
                         </a>
                     </div>
