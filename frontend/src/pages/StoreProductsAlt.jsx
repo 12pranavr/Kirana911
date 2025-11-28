@@ -5,7 +5,10 @@ import { supabase } from '../services/supabase'; // Import Supabase client
 import api from '../services/api';
 import StoreTemplate from '../components/StoreTemplate';
 
-const StoreProducts = () => {
+// This is an alternative store page that uses the same template
+// but could have different data fetching logic or additional features
+
+const StoreProductsAlt = () => {
     const { storeId } = useParams();
     const [store, setStore] = useState(null);
     const [products, setProducts] = useState([]);
@@ -184,4 +187,4 @@ const StoreProducts = () => {
     );
 };
 
-export default StoreProducts;
+export default StoreProductsAlt;

@@ -49,6 +49,22 @@ const Transactions = () => {
         }
     };
 
+    // Extract source from note
+    const getSourceFromNote = (note) => {
+        if (!note) return 'manual';
+        const sourceMatch = note.match(/\[SOURCE:(\w+)\]/);
+        return sourceMatch ? sourceMatch[1] : 'manual';
+    };
+
+    // Get source display text and color
+    const getSourceDisplay = (source) => {
+        switch (source) {
+            case 'online': return { text: 'Online', color: 'bg-green-100 text-green-800 border-green-300' };
+            case 'ocr': return { text: 'OCR', color: 'bg-blue-100 text-blue-800 border-blue-300' };
+            default: return { text: 'Manual', color: 'bg-gray-100 text-gray-800 border-gray-300' };
+        }
+    };
+
     // Export to CSV function with product details
     const exportToCSV = () => {
         if (transactions.length === 0) return;
@@ -61,6 +77,7 @@ const Transactions = () => {
             'Amount', 
             'Items Count', 
             'Note',
+            'Source',
             'Products Sold (Name:Qty:Price:Total)'
         ];
         
@@ -80,6 +97,9 @@ const Transactions = () => {
                     .join('; ');
             }
 
+            // Use the source directly from the transaction
+            const source = transaction.source || 'manual';
+
             return [
                 `"${formatDate(transaction.date)}"`,
                 `"${transaction.type}"`,
@@ -87,6 +107,7 @@ const Transactions = () => {
                 `"${transaction.amount}"`,
                 `"${transaction.items_count || 0}"`,
                 `"${transaction.note || ''}"`,
+                `"${source}"`,
                 `"${productsSold}"`
             ];
         });
@@ -197,61 +218,64 @@ const Transactions = () => {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Note</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                                {transactions.map((transaction) => (
-                                    <tr key={transaction.id} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2 text-sm text-gray-900">
-                                                <Calendar className="w-4 h-4 text-gray-400" />
-                                                {formatDate(transaction.date)}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getTypeColor(transaction.type)}`}>
-                                                {transaction.type.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                            {transaction.category}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`text-sm font-bold ${transaction.type === 'sale' || transaction.type === 'income'
-                                                ? 'text-green-600'
-                                                : 'text-red-600'
-                                                }`}>
-                                                {transaction.type === 'sale' || transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toFixed(2)}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            {transaction.items_count > 0 ? (
-                                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
-                                                    {transaction.items_count} items
-                                                </span>
-                                            ) : '-'}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                                            {transaction.note || '-'}
-                                            {transaction.items?.[0]?.customers?.name && (
-                                                <div className="text-xs text-blue-600 font-semibold mt-1">
-                                                    Customer: {transaction.items[0].customers.name}
+                                {transactions.map((transaction) => {
+                                    // Use the source directly from the transaction
+                                    const source = transaction.source || 'manual';
+                                    const sourceDisplay = getSourceDisplay(source);
+                                    
+                                    return (
+                                        <tr key={transaction.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2 text-sm text-gray-900">
+                                                    <Calendar className="w-4 h-4 text-gray-400" />
+                                                    {formatDate(transaction.date)}
                                                 </div>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <button
-                                                onClick={() => setSelectedTransaction(transaction)}
-                                                className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 text-sm font-medium"
-                                            >
-                                                <Eye className="w-4 h-4" />
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getTypeColor(transaction.type)}`}>
+                                                    {transaction.type.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                {transaction.category}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`text-sm font-bold ${transaction.type === 'sale' || transaction.type === 'income'
+                                                    ? 'text-green-600'
+                                                    : 'text-red-600'}`}
+                                                >
+                                                    ₹{transaction.amount.toFixed(2)}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                {transaction.items_count || 0}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`px-3 py-1 text-xs font-medium rounded-full border ${sourceDisplay.color}`}>
+                                                    {sourceDisplay.text}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate">
+                                                {transaction.note}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                <button
+                                                    onClick={() => setSelectedTransaction(transaction)}
+                                                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                    View
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -285,6 +309,19 @@ const Transactions = () => {
                                     <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getTypeColor(selectedTransaction.type)}`}>
                                         {selectedTransaction.type.toUpperCase()}
                                     </span>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Source</p>
+                                    {(() => {
+                                        // Use the source directly from the transaction
+                                        const source = selectedTransaction.source || 'manual';
+                                        const sourceDisplay = getSourceDisplay(source);
+                                        return (
+                                            <span className={`px-3 py-1 text-xs font-medium rounded-full border ${sourceDisplay.color}`}>
+                                                {sourceDisplay.text}
+                                            </span>
+                                        );
+                                    })()}
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">Amount</p>

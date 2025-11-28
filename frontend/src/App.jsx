@@ -18,6 +18,7 @@ import Landing from './pages/Landing';
 import CustomerEngagement from './pages/CustomerEngagement';
 import StoreFinder from './pages/StoreFinder';
 import StoreProducts from './pages/StoreProducts';
+import StoreProductsAlt from './pages/StoreProductsAlt';
 import AdminStores from './pages/AdminStores';
 import StoreMarketplace from './pages/StoreMarketplace';
 
@@ -53,6 +54,7 @@ function App() {
                     <Route path="/products" element={<PublicProducts />} />
                     <Route path="/stores" element={<StoreFinder />} />
                     <Route path="/store/:storeId/products" element={<StoreProducts />} />
+                    <Route path="/store-alt/:storeId/products" element={<StoreProductsAlt />} />
                     
                     {/* Authentication routes */}
                     <Route path="/login" element={!session ? <Login /> : <Navigate to="/dashboard" />} />

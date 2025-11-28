@@ -72,9 +72,89 @@ router.get('/pnl', async (req, res) => {
         // Calculate net profit
         const netProfit = revenue - expenses;
         
-        // Separate online and offline sales
-        const onlineSales = salesRes.data.filter(sale => sale.source === 'online');
-        const offlineSales = salesRes.data.filter(sale => sale.source !== 'online');
+        // Separate online and offline sales based on transaction notes
+        // First, get all transactions to check their notes
+        let transactionsQuery = supabase
+            .from('transactions')
+            .select(`
+                id,
+                note,
+                date
+            `);
+            
+        try {
+            const userStore = await getUserStore(req);
+            
+            // If user is an owner, filter by their store
+            if (userStore.role === 'owner' && userStore.store_id) {
+                transactionsQuery = transactionsQuery.eq('store_id', userStore.store_id);
+            }
+        } catch (authError) {
+            // If no auth, continue without filtering (backward compatibility)
+            console.log('No authentication provided, returning all data');
+        }
+        
+        // Apply date filters if provided
+        if (start_date) {
+            transactionsQuery = transactionsQuery.gte('date', start_date);
+        }
+        if (end_date) {
+            // For end date, we want to include the entire day
+            const endDateObj = new Date(end_date);
+            endDateObj.setDate(endDateObj.getDate() + 1);
+            const nextDay = endDateObj.toISOString().split('T')[0];
+            transactionsQuery = transactionsQuery.lt('date', nextDay);
+        }
+        
+        const { data: transactionsData, error: transactionsError } = await transactionsQuery;
+        
+        if (transactionsError) throw transactionsError;
+        
+        // Create a map of transaction ID to source
+        const transactionSourceMap = {};
+        transactionsData.forEach(transaction => {
+            let source = 'manual'; // default
+            if (transaction.note) {
+                // Extract source from note if present using the format [SOURCE:online]
+                const sourceMatch = transaction.note.match(/\[SOURCE:(\w+)\]/);
+                if (sourceMatch) {
+                    source = sourceMatch[1];
+                } else if (transaction.note.includes('Online order from store page')) {
+                    // Heuristic: if note contains this text, it's likely an online order
+                    source = 'online';
+                }
+            }
+            transactionSourceMap[transaction.id] = source;
+        });
+        
+        // For now, we'll use a time-based matching approach since there's no direct link
+        // between sales and transactions in the current schema
+        const onlineSales = [];
+        const offlineSales = [];
+        
+        salesRes.data.forEach(sale => {
+            // Find the closest transaction to this sale
+            const saleDate = new Date(sale.date);
+            let closestTransaction = null;
+            let minTimeDiff = Infinity;
+            
+            transactionsData.forEach(transaction => {
+                const transactionDate = new Date(transaction.date);
+                const timeDiff = Math.abs(transactionDate - saleDate);
+                if (timeDiff < minTimeDiff && timeDiff < 3600000) { // 1 hour
+                    minTimeDiff = timeDiff;
+                    closestTransaction = transaction;
+                }
+            });
+            
+            const source = closestTransaction ? transactionSourceMap[closestTransaction.id] : 'manual';
+            
+            if (source === 'online') {
+                onlineSales.push(sale);
+            } else {
+                offlineSales.push(sale);
+            }
+        });
         
         const onlineRevenue = onlineSales.reduce((sum, sale) => sum + sale.total_price, 0);
         const offlineRevenue = offlineSales.reduce((sum, sale) => sum + sale.total_price, 0);
