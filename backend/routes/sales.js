@@ -16,7 +16,7 @@ router.get('/trend', async (req, res) => {
                 date, 
                 total_price, 
                 qty_sold,
-                products(store_id)
+                store_id
             `)
             .gte('date', startDate.toISOString())
             .order('date', { ascending: true });
@@ -26,7 +26,7 @@ router.get('/trend', async (req, res) => {
             
             // If user is an owner, filter by their store
             if (userStore.role === 'owner' && userStore.store_id) {
-                query = query.eq('products.store_id', userStore.store_id);
+                query = query.eq('store_id', userStore.store_id);
             }
         } catch (authError) {
             // If no auth, continue without filtering (backward compatibility)

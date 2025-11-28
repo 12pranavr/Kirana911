@@ -45,7 +45,98 @@ const checkAdmin = async (req, res, next) => {
     }
 };
 
-// Apply admin middleware to all routes in this file
+// Public route - Get nearby stores by pincode (no authentication required)
+router.get('/nearby/:pincode', async (req, res) => {
+    try {
+        const { pincode } = req.params;
+        
+        const { data, error } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('pincode', pincode)
+            .eq('is_active', true);
+            
+        if (error) return res.status(500).json({ error: error.message });
+        
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching nearby stores:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Public route - Get store products (no authentication required)
+router.get('/:id/products', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const { data, error } = await supabase
+            .from('products')
+            .select('*, stock_levels(current_stock)')
+            .eq('store_id', id);
+            
+        if (error) return res.status(500).json({ error: error.message });
+        
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching store products:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Public route - Get current user's store (authentication required)
+router.get('/user-store', async (req, res) => {
+    try {
+        // Get the authorization header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Authorization header missing or invalid' });
+        }
+
+        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        
+        // Verify the token with Supabase
+        const { data: { user }, error } = await supabase.auth.getUser(token);
+        
+        if (error || !user) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        // Get user's store from our users table
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('store_id')
+            .eq('email', user.email)
+            .single();
+
+        if (userError) {
+            return res.status(500).json({ error: 'Failed to fetch user data: ' + userError.message });
+        }
+
+        // If user doesn't have a store, return null
+        if (!userData.store_id) {
+            return res.json(null);
+        }
+
+        // Get the store information
+        const { data: storeData, error: storeError } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('id', userData.store_id)
+            .single();
+
+        if (storeError) {
+            return res.status(500).json({ error: 'Failed to fetch store data: ' + storeError.message });
+        }
+
+        res.json(storeData);
+    } catch (error) {
+        console.error('Error fetching user store:', error);
+        res.status(500).json({ error: 'Internal server error: ' + error.message });
+    }
+});
+
+// Apply admin middleware to all routes below this point
 router.use(checkAdmin);
 
 // Get all stores (admin only)
@@ -311,45 +402,6 @@ router.post('/remove', async (req, res) => {
     } catch (error) {
         console.error('Error deleting store:', error);
         res.status(500).json({ error: 'Internal server error: ' + error.message });
-    }
-});
-
-// Get store products (public endpoint for customer pincode search)
-router.get('/nearby/:pincode', async (req, res) => {
-    try {
-        const { pincode } = req.params;
-        
-        const { data, error } = await supabase
-            .from('stores')
-            .select('*')
-            .eq('pincode', pincode)
-            .eq('is_active', true);
-            
-        if (error) return res.status(500).json({ error: error.message });
-        
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching nearby stores:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Get store products
-router.get('/:id/products', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const { data, error } = await supabase
-            .from('products')
-            .select('*, stock_levels(current_stock)')
-            .eq('store_id', id);
-            
-        if (error) return res.status(500).json({ error: error.message });
-        
-        res.json(data);
-    } catch (error) {
-        console.error('Error fetching store products:', error);
-        res.status(500).json({ error: 'Internal server error' });
     }
 });
 

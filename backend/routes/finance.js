@@ -15,7 +15,7 @@ router.get('/pnl', async (req, res) => {
                 total_price, 
                 date, 
                 source,
-                products(store_id)
+                store_id
             `);
 
         let expenseQuery = supabase
@@ -32,7 +32,7 @@ router.get('/pnl', async (req, res) => {
             
             // If user is an owner, filter by their store
             if (userStore.role === 'owner' && userStore.store_id) {
-                salesQuery = salesQuery.eq('products.store_id', userStore.store_id);
+                salesQuery = salesQuery.eq('store_id', userStore.store_id);
                 expenseQuery = expenseQuery.eq('store_id', userStore.store_id);
             }
         } catch (authError) {

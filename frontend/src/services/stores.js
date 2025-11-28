@@ -65,6 +65,17 @@ const storesService = {
       console.error('Error fetching store products:', error);
       throw error;
     }
+  },
+
+  // Get store details by ID
+  getStoreById: async (storeId) => {
+    try {
+      const response = await api.get(`/stores/${storeId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching store details:', error);
+      throw error;
+    }
   }
 };
 

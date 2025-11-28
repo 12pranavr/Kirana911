@@ -15,7 +15,8 @@ router.get('/analytics', async (req, res) => {
             .select(`
                 product_id, 
                 qty_sold,
-                products(name, store_id)
+                store_id,
+                products(name)
             `)
             .order('qty_sold', { ascending: false })
             .limit(5);
@@ -27,7 +28,7 @@ router.get('/analytics', async (req, res) => {
             if (userStore.role === 'owner' && userStore.store_id) {
                 productsQuery = productsQuery.eq('store_id', userStore.store_id);
                 transactionsQuery = transactionsQuery.eq('store_id', userStore.store_id);
-                salesQuery = salesQuery.eq('products.store_id', userStore.store_id);
+                salesQuery = salesQuery.eq('store_id', userStore.store_id);
             }
         } catch (authError) {
             // If no auth, continue without filtering (backward compatibility)

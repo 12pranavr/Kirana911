@@ -17,19 +17,35 @@ router.get('/', async (req, res) => {
             
             // If user is an owner, filter by their store
             if (userStore.role === 'owner' && userStore.store_id) {
-                // For store owners, we need to filter customers based on their sales
-                // This is a bit complex since customers aren't directly linked to stores
-                // We'll filter by sales that belong to this store
+                // For store owners, include customers who:
+                // 1. Have purchases from this store, OR
+                // 2. Are directly associated with this store (via store_id)
                 const { data: storeSales, error: salesError } = await supabase
                     .from('sales')
                     .select('customer_id')
-                    .eq('products.store_id', userStore.store_id);
+                    .eq('store_id', userStore.store_id);
                     
                 if (salesError) throw salesError;
                 
-                const customerIds = [...new Set(storeSales.map(sale => sale.customer_id))];
-                if (customerIds.length > 0) {
-                    customersQuery = customersQuery.in('id', customerIds);
+                // Get customer IDs from sales
+                const customerIdsFromSales = [...new Set(storeSales.map(sale => sale.customer_id))];
+                
+                // Also get customers directly associated with this store
+                const { data: directCustomers, error: directCustomersError } = await supabase
+                    .from('customers')
+                    .select('id')
+                    .eq('store_id', userStore.store_id);
+                    
+                if (directCustomersError) throw directCustomersError;
+                
+                // Combine both lists of customer IDs
+                const allCustomerIds = [...new Set([
+                    ...customerIdsFromSales,
+                    ...directCustomers.map(c => c.id)
+                ])];
+                
+                if (allCustomerIds.length > 0) {
+                    customersQuery = customersQuery.in('id', allCustomerIds);
                 } else {
                     // No customers for this store
                     return res.json([]);
@@ -83,7 +99,7 @@ router.get('/:id/analytics', async (req, res) => {
             
             // If user is an owner, filter by their store
             if (userStore.role === 'owner' && userStore.store_id) {
-                salesQuery = salesQuery.eq('products.store_id', userStore.store_id);
+                salesQuery = salesQuery.eq('store_id', userStore.store_id);
             }
         } catch (authError) {
             // If no auth, continue without filtering (backward compatibility)
@@ -200,9 +216,9 @@ router.get('/:id/recommendations', async (req, res) => {
             
             // If user is an owner, filter by their store
             if (userStore.role === 'owner' && userStore.store_id) {
-                baseSalesQuery = baseSalesQuery.eq('products.store_id', userStore.store_id);
-                similarSalesQuery = similarSalesQuery.eq('products.store_id', userStore.store_id);
-                recommendedSalesQuery = recommendedSalesQuery.eq('products.store_id', userStore.store_id);
+                baseSalesQuery = baseSalesQuery.eq('store_id', userStore.store_id);
+                similarSalesQuery = similarSalesQuery.eq('store_id', userStore.store_id);
+                recommendedSalesQuery = recommendedSalesQuery.eq('store_id', userStore.store_id);
             }
         } catch (authError) {
             // If no auth, continue without filtering (backward compatibility)
@@ -228,7 +244,7 @@ router.get('/:id/recommendations', async (req, res) => {
             try {
                 const userStore = await getUserStore(req);
                 if (userStore.role === 'owner' && userStore.store_id) {
-                    topQuery.eq('products.store_id', userStore.store_id);
+                    topQuery.eq('store_id', userStore.store_id);
                 }
             } catch (authError) {
                 // Continue without filtering
@@ -362,10 +378,12 @@ router.post('/add', async (req, res) => {
             // For backward compatibility, allow customer creation without auth
             try {
                 const { name, email, phone, address, role } = req.body;
-
+                
                 if (!name) {
                     return res.status(400).json({ error: 'Name is required' });
                 }
+                
+                console.log('Creating customer (fallback):', { name, role });
 
                 const { data: customer, error } = await supabase
                     .from('customers')
@@ -380,10 +398,12 @@ router.post('/add', async (req, res) => {
                     .single();
 
                 if (error) {
-                    console.error('Customer insert error:', error);
+                    console.error('Error in add member (fallback):', error);
                     return res.status(500).json({ error: error.message });
                 }
 
+                console.log('Customer created successfully (fallback):', customer);
+                
                 // Audit log
                 await supabase.from('audit_logs').insert([{
                     action: 'add_member',
@@ -424,7 +444,7 @@ router.post('/update', async (req, res) => {
                 .from('sales')
                 .select('id')
                 .eq('customer_id', id)
-                .eq('products.store_id', userStore.store_id)
+                .eq('store_id', userStore.store_id)
                 .limit(1);
                 
             if (salesError) return res.status(500).json({ error: salesError.message });
@@ -498,7 +518,7 @@ router.post('/remove', async (req, res) => {
                 .from('sales')
                 .select('id')
                 .eq('customer_id', id)
-                .eq('products.store_id', userStore.store_id)
+                .eq('store_id', userStore.store_id)
                 .limit(1);
                 
             if (salesError) return res.status(500).json({ error: salesError.message });

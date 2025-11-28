@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, DollarSign, TrendingUp, LogOut, Users, ShoppingCart, Receipt, Sun, Moon, Brain, BarChart3, UserCheck, Store } from 'lucide-react';
+import { LayoutDashboard, Package, DollarSign, TrendingUp, LogOut, Users, ShoppingCart, Receipt, Sun, Moon, Brain, BarChart3, UserCheck, Store, Globe } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import ChatWidget from './ChatWidget';
 import { useTheme } from '../context/ThemeContext';
@@ -12,13 +12,15 @@ const Layout = ({ children }) => {
     const [userRole, setUserRole] = useState('owner'); // default to owner
 
     useEffect(() => {
-        const fetchUserRole = async () => {
+        const fetchUserData = async () => {
             const { data: { user: authUser } } = await supabase.auth.getUser();
             if (authUser) {
-                // Fetch user role from the users table
+                setUser(authUser);
+                
+                // Fetch user role and name from the users table
                 const { data: userData, error } = await supabase
                     .from('users')
-                    .select('role')
+                    .select('role, name')
                     .eq('email', authUser.email)
                     .single();
                 
@@ -28,7 +30,7 @@ const Layout = ({ children }) => {
             }
         };
         
-        fetchUserRole();
+        fetchUserData();
     }, []);
 
     // Different navigation items based on user role
@@ -37,7 +39,8 @@ const Layout = ({ children }) => {
             { path: '/admin/stores', label: 'Store Management', icon: Store },
         ]
         : [
-            { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+            { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { path: '/marketplace', label: 'Marketplace', icon: Globe },
             { path: '/sales', label: 'New Sale', icon: ShoppingCart },
             { path: '/transactions', label: 'Transactions', icon: Receipt },
             { path: '/inventory', label: 'Inventory', icon: Package },
@@ -103,10 +106,10 @@ const Layout = ({ children }) => {
                             {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
                         </button>
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                            Welcome, {userRole === 'admin' ? 'Administrator' : 'Shop Owner'}
+                            Welcome, {user ? (user.user_metadata?.full_name || user.email.split('@')[0]) : (userRole === 'admin' ? 'Administrator' : 'Shop Owner')}
                         </span>
                         <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900 rounded-full flex items-center justify-center text-primary dark:text-indigo-300 font-bold">
-                            K
+                            {user ? (user.user_metadata?.full_name ? user.user_metadata.full_name.charAt(0) : user.email.charAt(0)) : 'K'}
                         </div>
                     </div>
                 </header>

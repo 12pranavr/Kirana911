@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabaseClient');
+const getUserStore = require('../utils/getUserStore');
 
 // Create a new sale transaction
 router.post('/create', async (req, res) => {
@@ -16,6 +17,21 @@ router.post('/create', async (req, res) => {
 
         if (!items || items.length === 0) {
             return res.status(400).json({ error: 'No items provided' });
+        }
+
+        // Get user's store information
+        let userStore = null;
+        try {
+            userStore = await getUserStore(req);
+            console.log('User store info:', userStore);
+        } catch (authError) {
+            console.error('Authentication error:', authError);
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        // Only owners can create sales, and they must have a store
+        if (userStore.role !== 'owner' || !userStore.store_id) {
+            return res.status(403).json({ error: 'Only store owners can create sales' });
         }
 
         // Use provided date or current date
@@ -69,7 +85,8 @@ router.post('/create', async (req, res) => {
                 category: 'Product Sale',
                 amount: 0, // Will be updated after calculating total
                 note: notes || `Sale of 0 items${actualCustomerId ? ' to customer' : ' (Walk-in)'}`,
-                added_by: null
+                added_by: null,
+                store_id: userStore.store_id // Associate transaction with user's store
             }])
             .select()
             .single();
@@ -94,22 +111,23 @@ router.post('/create', async (req, res) => {
                 continue;
             }
 
-            // Get product details
+            // Get product details and verify it belongs to the user's store
             const { data: product, error: productError } = await supabase
                 .from('products')
                 .select('*, stock_levels(current_stock)')
                 .eq('id', product_id)
+                .eq('store_id', userStore.store_id) // Ensure product belongs to user's store
                 .single();
 
             if (productError || !product) {
-                console.error('Product not found or error:', product_id, productError);
+                console.error('Product not found or doesn\'t belong to store:', product_id, productError);
                 // Instead of continuing, let's add an error to the response but continue processing other items
                 salesRecords.push({
                     product_name: 'Unknown Product',
                     quantity,
                     unit_price: 0,
                     total: 0,
-                    error: `Product not found: ${product_id}`
+                    error: `Product not found or doesn't belong to your store: ${product_id}`
                 });
                 continue;
             }
@@ -133,8 +151,7 @@ router.post('/create', async (req, res) => {
                 totalAmount += total;
                 processedItemCount++;
 
-                // Create sale record WITHOUT transaction_id since the column doesn't exist yet
-                // TEMPORARY FIX: Use 'manual' as source to bypass constraint issue
+                // Create sale record with store_id
                 const saleSource = source && ['ocr', 'manual', 'online'].includes(source) ? source : 'manual';
                 
                 const { data: sale, error: saleError } = await supabase
@@ -142,12 +159,12 @@ router.post('/create', async (req, res) => {
                     .insert([{
                         product_id,
                         customer_id: actualCustomerId || null,
-                        // REMOVED transaction_id since column doesn't exist
                         date: transactionDate,
                         qty_sold: quantity,
                         unit_price: unitPrice,
                         total_price: total,
-                        source: saleSource
+                        source: saleSource,
+                        store_id: userStore.store_id // Associate sale with user's store
                     }])
                     .select()
                     .single();
@@ -160,12 +177,12 @@ router.post('/create', async (req, res) => {
                         .insert([{
                             product_id,
                             customer_id: actualCustomerId || null,
-                            // REMOVED transaction_id since column doesn't exist
                             date: transactionDate,
                             qty_sold: quantity,
                             unit_price: unitPrice,
                             total_price: total,
-                            source: 'manual'
+                            source: 'manual',
+                            store_id: userStore.store_id // Associate sale with user's store
                         }])
                         .select()
                         .single();
@@ -217,7 +234,8 @@ router.post('/create', async (req, res) => {
             .from('transactions')
             .update({
                 amount: totalAmount,
-                note: notes || `Sale of ${processedItemCount} items${actualCustomerId ? ' to customer' : ' (Walk-in)'}`
+                note: notes || `Sale of ${processedItemCount} items${actualCustomerId ? ' to customer' : ' (Walk-in)'}`,
+                store_id: userStore.store_id // Ensure store_id is set
             })
             .eq('id', transaction.id);
 
@@ -235,7 +253,8 @@ router.post('/create', async (req, res) => {
                 total_amount: totalAmount,
                 payment_method: payment_method,
                 transaction_id: transaction.id,
-                source: source || 'manual'
+                source: source || 'manual',
+                store_id: userStore.store_id
             },
             timestamp: new Date()
         }]);
@@ -268,11 +287,25 @@ router.get('/', async (req, res) => {
     try {
         const { start_date, end_date, type } = req.query;
 
+        // Get user's store information
+        let userStore = null;
+        try {
+            userStore = await getUserStore(req);
+        } catch (authError) {
+            // If no auth, continue without filtering (backward compatibility)
+            console.log('No authentication provided, using all data');
+        }
+
         // First, get transactions with basic info
         let query = supabase
             .from('transactions')
             .select('*')
             .order('date', { ascending: false });
+
+        // Apply store filter if user is an owner
+        if (userStore && userStore.role === 'owner' && userStore.store_id) {
+            query = query.eq('store_id', userStore.store_id);
+        }
 
         // Apply date filters
         if (start_date) {
@@ -295,8 +328,8 @@ router.get('/', async (req, res) => {
 
         if (transactionError) throw transactionError;
 
-        // Get all sales with product and customer details
-        const { data: allSales, error: salesError } = await supabase
+        // Get all sales with product and customer details, filtered by store if needed
+        let salesQuery = supabase
             .from('sales')
             .select(`
                 *,
@@ -304,6 +337,13 @@ router.get('/', async (req, res) => {
                 customers(name)
             `)
             .order('date', { ascending: false });
+
+        // Apply store filter to sales if user is an owner
+        if (userStore && userStore.role === 'owner' && userStore.store_id) {
+            salesQuery = salesQuery.eq('store_id', userStore.store_id);
+        }
+
+        const { data: allSales, error: salesError } = await salesQuery;
 
         if (salesError) {
             console.warn('Error fetching sales:', salesError);

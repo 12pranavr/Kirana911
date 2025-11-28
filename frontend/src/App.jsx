@@ -8,7 +8,6 @@ import Inventory from './pages/Inventory';
 import Finance from './pages/Finance';
 import Forecast from './pages/Forecast';
 import Predictions from './pages/Predictions';
-
 import Customers from './pages/Customers';
 import Sales from './pages/Sales';
 import Transactions from './pages/Transactions';
@@ -20,6 +19,7 @@ import CustomerEngagement from './pages/CustomerEngagement';
 import StoreFinder from './pages/StoreFinder';
 import StoreProducts from './pages/StoreProducts';
 import AdminStores from './pages/AdminStores';
+import StoreMarketplace from './pages/StoreMarketplace';
 
 function App() {
     const [session, setSession] = useState(null);
@@ -59,6 +59,7 @@ function App() {
                     
                     {/* Protected routes - only accessible to authenticated users */}
                     <Route path="/dashboard" element={session ? <Layout><Dashboard /></Layout> : <Navigate to="/login" />} />
+                    <Route path="/marketplace" element={session ? <Layout><StoreMarketplace /></Layout> : <Navigate to="/login" />} />
                     <Route path="/inventory" element={session ? <Layout><Inventory /></Layout> : <Navigate to="/login" />} />
                     <Route path="/sales" element={session ? <Layout><Sales /></Layout> : <Navigate to="/login" />} />
                     <Route path="/transactions" element={session ? <Layout><Transactions /></Layout> : <Navigate to="/login" />} />
