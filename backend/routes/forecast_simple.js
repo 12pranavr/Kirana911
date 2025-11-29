@@ -52,25 +52,50 @@ router.get('/', async (req, res) => {
     try {
         console.log('=== Forecast: Fetching real sales data ===');
 
+        // Get user's store information
+        let userStore = null;
+        try {
+            const getUserStore = require('../utils/getUserStore');
+            userStore = await getUserStore(req);
+            console.log('User store info:', userStore);
+        } catch (authError) {
+            console.error('Authentication error:', authError);
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
         let correlations = [];
 
         try {
-            // Fetch real sales data (now that RLS is fixed!)
-            const { data: salesData, error: salesError } = await supabase
+            // Fetch real sales data for the user's store only
+            let salesQuery = supabase
                 .from('sales')
                 .select('date, product_id')
                 .order('date', { ascending: false })
                 .limit(1000);
+
+            // Apply store filter
+            if (userStore.store_id) {
+                salesQuery = salesQuery.eq('store_id', userStore.store_id);
+            }
+
+            const { data: salesData, error: salesError } = await salesQuery;
 
             if (salesError) {
                 console.error('Sales fetch error:', salesError);
                 throw salesError;
             }
 
-            // Fetch products for name lookup
-            const { data: productsData, error: productsError } = await supabase
+            // Fetch products for name lookup (filtered by store)
+            let productsQuery = supabase
                 .from('products')
                 .select('id, name');
+
+            // Apply store filter
+            if (userStore.store_id) {
+                productsQuery = productsQuery.eq('store_id', userStore.store_id);
+            }
+
+            const { data: productsData, error: productsError } = await productsQuery;
 
             if (productsError) {
                 console.error('Products fetch error:', productsError);
@@ -101,15 +126,29 @@ router.get('/', async (req, res) => {
         let productsNeverSold = [];
 
         try {
-            // Fetch all products
-            const { data: allProducts } = await supabase
+            // Fetch all products for the user's store
+            let allProductsQuery = supabase
                 .from('products')
                 .select('id, name, sku_id');
 
-            // Fetch stock levels
-            const { data: stockLevels } = await supabase
+            // Apply store filter
+            if (userStore.store_id) {
+                allProductsQuery = allProductsQuery.eq('store_id', userStore.store_id);
+            }
+
+            const { data: allProducts } = await allProductsQuery;
+
+            // Fetch stock levels for the user's store
+            let stockLevelsQuery = supabase
                 .from('stock_levels')
                 .select('product_id, current_stock');
+
+            // Apply store filter
+            if (userStore.store_id) {
+                stockLevelsQuery = stockLevelsQuery.eq('store_id', userStore.store_id);
+            }
+
+            const { data: stockLevels } = await stockLevelsQuery;
 
             // Create stock levels map
             const stockMap = {};
@@ -119,10 +158,17 @@ router.get('/', async (req, res) => {
                 });
             }
 
-            // Fetch sales with product info
-            const { data: salesWithProducts } = await supabase
+            // Fetch sales with product info for the user's store
+            let salesWithProductsQuery = supabase
                 .from('sales')
                 .select('qty_sold, product_id, date, products(name)');
+
+            // Apply store filter
+            if (userStore.store_id) {
+                salesWithProductsQuery = salesWithProductsQuery.eq('store_id', userStore.store_id);
+            }
+
+            const { data: salesWithProducts } = await salesWithProductsQuery;
 
             if (allProducts && salesWithProducts) {
                 // Group sales by product
