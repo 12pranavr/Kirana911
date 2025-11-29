@@ -446,4 +446,55 @@ router.get('/', async (req, res) => {
     }
 });
 
+// Add a new transaction
+router.post('/add', async (req, res) => {
+    try {
+        const { type, category, amount, note, date } = req.body;
+        
+        // Validate required fields
+        if (!type || !category || !amount) {
+            return res.status(400).json({ error: 'Type, category, and amount are required' });
+        }
+        
+        if (isNaN(amount) || parseFloat(amount) <= 0) {
+            return res.status(400).json({ error: 'Amount must be a positive number' });
+        }
+        
+        // Get user's store information
+        let userStore = null;
+        try {
+            userStore = await getUserStore(req);
+        } catch (authError) {
+            // If no auth, continue without store_id
+            console.log('No authentication provided for transaction add');
+        }
+        
+        // Create transaction
+        const transactionData = {
+            type,
+            category,
+            amount: parseFloat(amount),
+            note: note || '',
+            date: date || new Date().toISOString(),
+            store_id: userStore?.store_id || null
+        };
+        
+        const { data, error } = await supabase
+            .from('transactions')
+            .insert([transactionData])
+            .select()
+            .single();
+            
+        if (error) throw error;
+        
+        res.json({
+            message: 'Transaction added successfully',
+            transaction: data
+        });
+    } catch (error) {
+        console.error('Error adding transaction:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

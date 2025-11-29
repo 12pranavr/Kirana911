@@ -72,6 +72,11 @@ router.get('/pnl', async (req, res) => {
         // Calculate net profit
         const netProfit = revenue - expenses;
         
+        // Debug logging
+        console.log('Revenue:', revenue);
+        console.log('Expenses:', expenses);
+        console.log('Net Profit:', netProfit);
+        
         // Separate online and offline sales based on transaction notes
         // First, get all transactions to check their notes
         let transactionsQuery = supabase

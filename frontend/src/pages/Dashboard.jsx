@@ -51,6 +51,7 @@ const Dashboard = () => {
 
             const lowStock = productsRes.data.filter(p => p.stock_levels[0]?.current_stock < p.reorder_point).length;
 
+            console.log('P&L Data:', pnlRes.data);
             setStats({
                 revenue: pnlRes.data.revenue,
                 profit: pnlRes.data.net_profit,
