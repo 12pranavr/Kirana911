@@ -8,12 +8,9 @@
       }
     }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/dist/index.html"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/dist/index.html" }
   ],
-  "installCommand": "npm install",
-  "buildCommand": "npm run build"
+  "installCommand": "cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build"
 }
