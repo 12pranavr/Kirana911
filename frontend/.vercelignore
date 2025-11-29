@@ -1,0 +1,17 @@
+# Ignore backend and unnecessary files when deploying frontend to Vercel
+../backend/
+.env.local
+.env.production
+node_modules/
+../setup/
+../*.md
+../*.sql
+../*.js
+../CHANGES_SUMMARY.md
+../DEMO.md
+../MULTI_STORE_IMPLEMENTATION.md
+../SETUP_INSTRUCTIONS.md
+../SHOP_FEATURES_SUMMARY.md
+../start_app.bat
+../STORE_ISOLATION_SETUP.md
+../test_setup.sql
