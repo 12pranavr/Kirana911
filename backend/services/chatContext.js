@@ -1,24 +1,36 @@
 const supabase = require('./supabaseClient');
 
-async function buildChatContext() {
+async function buildChatContext(storeId = null) {
     try {
-        // Fetch low stock items
-        const { data: lowStock } = await supabase
+        // Fetch low stock items (filtered by store)
+        let lowStockQuery = supabase
             .from('products')
             .select('name, stock_levels(current_stock)')
             .lt('stock_levels.current_stock', 10)
             .limit(5);
+        
+        if (storeId) {
+            lowStockQuery = lowStockQuery.eq('store_id', storeId);
+        }
+        
+        const { data: lowStock } = await lowStockQuery;
 
-        // Fetch recent sales (last 24 hours)
+        // Fetch recent sales (last 24 hours) (filtered by store)
         const twentyFourHoursAgo = new Date();
         twentyFourHoursAgo.setDate(twentyFourHoursAgo.getDate() - 1);
         
-        const { data: recentSales } = await supabase
+        let recentSalesQuery = supabase
             .from('sales')
             .select('products(name, cost_price), qty_sold, total_price, date')
             .gte('date', twentyFourHoursAgo.toISOString())
             .order('date', { ascending: false })
             .limit(10);
+            
+        if (storeId) {
+            recentSalesQuery = recentSalesQuery.eq('store_id', storeId);
+        }
+        
+        const { data: recentSales } = await recentSalesQuery;
 
         // Calculate today's total sales and profit
         let todaySales = 0;
@@ -36,12 +48,18 @@ async function buildChatContext() {
             }
         }
 
-        // Fetch top products by sales volume (manual grouping)
-        const { data: allRecentSales } = await supabase
+        // Fetch top products by sales volume (manual grouping) (filtered by store)
+        let allRecentSalesQuery = supabase
             .from('sales')
             .select('products(name), qty_sold')
             .gte('date', twentyFourHoursAgo.toISOString())
             .order('date', { ascending: false });
+            
+        if (storeId) {
+            allRecentSalesQuery = allRecentSalesQuery.eq('store_id', storeId);
+        }
+        
+        const { data: allRecentSales } = await allRecentSalesQuery;
 
         // Manually group and sum sales by product
         const productSalesMap = {};
@@ -61,17 +79,29 @@ async function buildChatContext() {
             .sort((a, b) => b.total_qty - a.total_qty)
             .slice(0, 5);
 
-        // Fetch customers data with purchase history
-        const { data: customersWithPurchases } = await supabase
+        // Fetch customers data with purchase history (filtered by store)
+        let customersQuery = supabase
             .from('customers')
             .select('name, email, role');
+            
+        if (storeId) {
+            customersQuery = customersQuery.eq('store_id', storeId);
+        }
+        
+        const { data: customersWithPurchases } = await customersQuery;
 
-        // Fetch sales with customer information to identify top customers
-        const { data: salesWithCustomers } = await supabase
+        // Fetch sales with customer information to identify top customers (filtered by store)
+        let salesWithCustomersQuery = supabase
             .from('sales')
             .select('customer_id, total_price, qty_sold, customers(name, email)')
             .order('date', { ascending: false })
             .limit(50);
+            
+        if (storeId) {
+            salesWithCustomersQuery = salesWithCustomersQuery.eq('store_id', storeId);
+        }
+        
+        const { data: salesWithCustomers } = await salesWithCustomersQuery;
 
         // Identify top customers by total spending
         const customerSpendingMap = {};
@@ -115,18 +145,30 @@ async function buildChatContext() {
             }));
         }
 
-        // Fetch products data
-        const { data: products } = await supabase
+        // Fetch products data (filtered by store)
+        let productsQuery = supabase
             .from('products')
             .select('name, category, selling_price, stock_levels(current_stock)')
             .limit(20);
+            
+        if (storeId) {
+            productsQuery = productsQuery.eq('store_id', storeId);
+        }
+        
+        const { data: products } = await productsQuery;
 
-        // Fetch transactions data (last 10)
-        const { data: recentTransactions } = await supabase
+        // Fetch transactions data (last 10) (filtered by store)
+        let transactionsQuery = supabase
             .from('transactions')
             .select('type, amount, category, note, date')
             .order('date', { ascending: false })
             .limit(10);
+            
+        if (storeId) {
+            transactionsQuery = transactionsQuery.eq('store_id', storeId);
+        }
+        
+        const { data: recentTransactions } = await transactionsQuery;
 
         const context = `
 You are KIRANA911 Assistant, a helpful shop manager AI with access to comprehensive shop data.

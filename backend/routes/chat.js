@@ -12,8 +12,19 @@ router.post('/', async (req, res) => {
         console.log('Message:', message);
         console.log('History length:', history?.length || 0);
 
-        // 1. Build context
-        const context = await buildChatContext();
+        // Get user's store information
+        let userStore = null;
+        try {
+            const getUserStore = require('../utils/getUserStore');
+            userStore = await getUserStore(req);
+            console.log('User store info:', userStore);
+        } catch (authError) {
+            console.error('Authentication error:', authError);
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        // 1. Build context (filtered by store)
+        const context = await buildChatContext(userStore.store_id);
         const fullMessage = `${context}\n\nUser: ${message}`;
 
         // 2. Call Gemini
@@ -49,11 +60,12 @@ router.post('/', async (req, res) => {
             // Not JSON, just text response
         }
 
-        // 4. Save Log
+        // 4. Save Log (with store_id)
         await supabase.from('chat_logs').insert([{
             message: message,
             response: response,
-            timestamp: new Date()
+            timestamp: new Date(),
+            store_id: userStore.store_id
         }]);
 
         console.log('=== Chat Response Sent ===');
