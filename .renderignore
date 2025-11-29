@@ -1,0 +1,4 @@
+# Ignore frontend files when deploying backend to Render
+frontend/
+.env.local
+.env.production

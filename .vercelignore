@@ -1,0 +1,4 @@
+# Ignore backend files when deploying frontend to Vercel
+backend/
+.env.local
+.env.production
