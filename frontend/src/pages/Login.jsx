@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../services/supabase';
+import { supabase } from '../services/supabase.js';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Mail, ArrowRight, Store } from 'lucide-react';
 

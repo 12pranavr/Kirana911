@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabase';
+import { supabase } from '../services/supabase.js';
 import { 
     Store,
     LogOut,

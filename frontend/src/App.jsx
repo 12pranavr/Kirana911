@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { supabase } from './services/supabase';
+import { supabase } from './services/supabase.js';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
 import AdminLayout from './components/AdminLayout';
