@@ -7,36 +7,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-// Configure CORS for production and development environments
+// Configure CORS - allow requests from our frontend domain
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Get allowed origins from environment variable or use defaults
-    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000,https://kirana911.vercel.app';
-    const allowedOrigins = allowedOriginsEnv.split(',');
-    
-    // Log the origin for debugging
-    console.log('CORS Origin:', origin);
-    console.log('Allowed Origins:', allowedOrigins);
-    
-    // Check if the origin is in our allowed list
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      // For development, allow all origins
-      if (process.env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    }
-  },
+  origin: ['https://kirana911.vercel.app', 'http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  exposedHeaders: ['Access-Control-Allow-Origin']
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions));
@@ -65,6 +40,11 @@ app.use('/api/stores', require('./routes/stores'));
 
 app.get('/', (req, res) => {
     res.send('KIRANA911 Backend is running');
+});
+
+// CORS test endpoint
+app.get('/test-cors', (req, res) => {
+    res.json({ message: 'CORS is working!' });
 });
 
 // Initialize database
