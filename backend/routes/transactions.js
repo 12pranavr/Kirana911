@@ -22,23 +22,36 @@ router.post('/create', async (req, res) => {
 
         // Get user's store information
         let userStore = null;
+        let isAnonymousOrder = false;
+        
         try {
             userStore = await getUserStore(req);
             console.log('User store info:', userStore);
         } catch (authError) {
             console.error('Authentication error:', authError);
-            return res.status(401).json({ error: 'Authentication required' });
+            // For online orders, we allow anonymous orders
+            if (source === 'online' && intended_store_id) {
+                isAnonymousOrder = true;
+                console.log('Allowing anonymous online order');
+            } else {
+                return res.status(401).json({ error: 'Authentication required' });
+            }
         }
 
         // For online orders from multi-store search, we allow cross-store ordering
         // Otherwise, only owners can create sales for their own store
         const isMultiStoreOrder = source === 'online' && intended_store_id;
-        if (!isMultiStoreOrder && (userStore.role !== 'owner' || !userStore.store_id)) {
+        if (!isMultiStoreOrder && !isAnonymousOrder && (userStore?.role !== 'owner' || !userStore?.store_id)) {
             return res.status(403).json({ error: 'Only store owners can create sales' });
         }
 
         // Determine which store this transaction belongs to
-        const transactionStoreId = isMultiStoreOrder ? intended_store_id : userStore.store_id;
+        const transactionStoreId = isMultiStoreOrder ? intended_store_id : (userStore?.store_id || null);
+        
+        // For anonymous orders, we must have a transactionStoreId
+        if (isAnonymousOrder && !transactionStoreId) {
+            return res.status(400).json({ error: 'Store ID required for anonymous orders' });
+        }
 
         // Use provided date or current date
         const transactionDate = date ? new Date(date) : new Date();
@@ -122,17 +135,17 @@ router.post('/create', async (req, res) => {
             }
 
             // Get product details and verify it belongs to the intended store
-            // For multi-store orders, we bypass the store ownership check
+            // For multi-store orders or anonymous orders, we bypass the store ownership check
             let productQuery = supabase
                 .from('products')
                 .select('*, stock_levels(current_stock)')
                 .eq('id', product_id);
                 
-            if (!isMultiStoreOrder) {
+            if (!isMultiStoreOrder && !isAnonymousOrder) {
                 // Regular store owner - verify product belongs to their store
                 productQuery = productQuery.eq('store_id', userStore.store_id);
             } else {
-                // Multi-store order - verify product belongs to the intended store
+                // Multi-store order or anonymous order - verify product belongs to the intended store
                 productQuery = productQuery.eq('store_id', transactionStoreId);
             }
 

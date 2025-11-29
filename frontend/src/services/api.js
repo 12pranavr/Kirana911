@@ -9,9 +9,18 @@ const api = axios.create({
 api.interceptors.request.use(
     async (config) => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+                console.error('Session error:', sessionError);
+                return config;
+            }
+            
             if (session?.access_token) {
                 config.headers.Authorization = `Bearer ${session.access_token}`;
+                console.log('Token added to request for:', config.url);
+            } else {
+                console.warn('No access token available for request to:', config.url);
             }
         } catch (error) {
             console.error('Error getting session:', error);

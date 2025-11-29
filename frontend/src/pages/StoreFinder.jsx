@@ -248,10 +248,18 @@ const StoreFinder = () => {
             };
 
             try {
+                console.log(`Placing order for store ${storeId} with data:`, saleData);
                 const response = await api.post('/transactions/create', saleData);
+                console.log(`Order response for store ${storeId}:`, response.data);
                 return { storeId, success: true, data: response.data };
             } catch (error) {
                 console.error(`Error placing order for store ${storeId}:`, error);
+                // Log more detailed error information
+                if (error.response) {
+                    console.error(`Error response for store ${storeId}:`, error.response.data);
+                    console.error(`Error status for store ${storeId}:`, error.response.status);
+                    console.error(`Error headers for store ${storeId}:`, error.response.headers);
+                }
                 return { storeId, success: false, error: error.message };
             }
         });
