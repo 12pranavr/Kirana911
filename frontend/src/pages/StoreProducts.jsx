@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import storesService from '../services/stores';
-import { supabase } from '../services/supabase.js'; // Import Supabase client
+import { supabase } from '../services/supabase'; // Import Supabase client
 import api from '../services/api';
 import StoreTemplate from '../components/StoreTemplate';
 import discoveryService from '../services/discovery';

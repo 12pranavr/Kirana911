@@ -20,5 +20,8 @@ export default defineConfig({
       }
     }
   },
-  base: '/'
+  base: '/',
+  resolve: {
+    extensions: ['.js', '.jsx', '.json']
+  }
 });

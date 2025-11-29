@@ -3,7 +3,7 @@ import { ShoppingCart, Search, Package, Star, MapPin, Phone, Store as StoreIcon,
 import PremiumProductCard from './PremiumProductCard';
 import ProductDiscoverySection from './ProductDiscoverySection';
 import storesService from '../services/stores';
-import { supabase } from '../services/supabase.js';
+import { supabase } from '../services/supabase';
 
 const StoreTemplate = ({ 
     store, 

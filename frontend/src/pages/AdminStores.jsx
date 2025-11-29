@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import storesService from '../services/stores';
 import { Plus, Edit, Trash2, Store, MapPin, Phone, Mail, Link as LinkIcon, X, Navigation } from 'lucide-react';
-import { supabase } from '../services/supabase.js';
+import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 
 const AdminStores = () => {
