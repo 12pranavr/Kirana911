@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Search, Package, Star, MapPin, Phone, Store as StoreIcon, X, Plus, Minus, Clock, Truck } from 'lucide-react';
+import { ShoppingCart, Search, Package, Star, MapPin, Phone, Store as StoreIcon, X, Plus, Minus, Clock, Truck, TrendingUp, Heart, Navigation, Edit } from 'lucide-react';
 import PremiumProductCard from './PremiumProductCard';
+import ProductDiscoverySection from './ProductDiscoverySection';
+import storesService from '../services/stores';
+import { supabase } from '../services/supabase';
 
 const StoreTemplate = ({ 
     store, 
@@ -22,10 +25,22 @@ const StoreTemplate = ({
     customerDetails,
     setCustomerDetails,
     showCustomerForm,
-    setShowCustomerForm
+    setShowCustomerForm,
+    discoveryData
 }) => {
     const [filteredProducts, setFilteredProducts] = useState([]);
     const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+    
+    // Location update state
+    const [showLocationModal, setShowLocationModal] = useState(false);
+    const [locationData, setLocationData] = useState({
+        latitude: '',
+        longitude: '',
+        pincode: ''
+    });
+    const [updatingLocation, setUpdatingLocation] = useState(false);
+    const [locationUpdateError, setLocationUpdateError] = useState('');
+    const [locationUpdateSuccess, setLocationUpdateSuccess] = useState(false);
 
     // Filter products based on search term and category
     useEffect(() => {
@@ -47,10 +62,60 @@ const StoreTemplate = ({
         setFilteredProducts(result);
     }, [searchTerm, selectedCategory, products]);
 
+    // Initialize location data when store changes
+    useEffect(() => {
+        if (store) {
+            setLocationData({
+                latitude: store.latitude || '',
+                longitude: store.longitude || '',
+                pincode: store.pincode || ''
+            });
+        }
+    }, [store]);
+
     const categories = ['all', ...new Set(products.map(p => p.category).filter(Boolean))];
     
     const calculateTotal = () => {
         return cart.reduce((sum, item) => sum + (item.selling_price * item.quantity), 0);
+    };
+
+    // Handle location update
+    const handleLocationUpdate = async () => {
+        if (!store) return;
+        
+        setUpdatingLocation(true);
+        setLocationUpdateError('');
+        setLocationUpdateSuccess(false);
+        
+        try {
+            // Validate inputs
+            if (!locationData.pincode) {
+                throw new Error('Pincode is required');
+            }
+            
+            // Update store location
+            const updateData = {
+                id: store.id,
+                latitude: locationData.latitude ? parseFloat(locationData.latitude) : null,
+                longitude: locationData.longitude ? parseFloat(locationData.longitude) : null,
+                pincode: locationData.pincode
+            };
+            
+            await storesService.updateStore(updateData);
+            
+            setLocationUpdateSuccess(true);
+            
+            // Hide modal after success
+            setTimeout(() => {
+                setShowLocationModal(false);
+                setLocationUpdateSuccess(false);
+            }, 2000);
+        } catch (err) {
+            console.error('Error updating location:', err);
+            setLocationUpdateError(err.message || 'Failed to update location. Please try again.');
+        } finally {
+            setUpdatingLocation(false);
+        }
     };
 
     if (loading) {
@@ -363,8 +428,156 @@ const StoreTemplate = ({
                                         <div className="text-xs opacity-90">Excellent service</div>
                                     </div>
                                 </div>
+                                {/* Update Location Button for Store Owners */}
+                                <button 
+                                    onClick={() => setShowLocationModal(true)}
+                                    className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-xl flex items-center gap-2 hover:bg-white/30 transition-all"
+                                >
+                                    <Edit className="w-5 h-5" />
+                                    <div>
+                                        <div className="font-semibold">Update Location</div>
+                                        <div className="text-xs opacity-90">Manage store location</div>
+                                    </div>
+                                </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Location Update Modal */}
+            {showLocationModal && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowLocationModal(false)}></div>
+                        <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                                <div className="sm:flex sm:items-start">
+                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                                        <h3 className="text-2xl leading-6 font-bold text-gray-900 mb-6">Update Store Location</h3>
+                                        <div className="mt-4 space-y-5">
+                                            <div className="bg-blue-50 p-4 rounded-xl">
+                                                <div className="flex items-start">
+                                                    <Navigation className="w-5 h-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" />
+                                                    <p className="text-sm text-blue-700">
+                                                        Update your store's location to ensure customers can find you accurately. 
+                                                        You can either enter coordinates manually or use the map to select your location.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Latitude</label>
+                                                <input
+                                                    type="text"
+                                                    value={locationData.latitude}
+                                                    onChange={(e) => setLocationData({...locationData, latitude: e.target.value})}
+                                                    placeholder="e.g., 28.613939"
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Longitude</label>
+                                                <input
+                                                    type="text"
+                                                    value={locationData.longitude}
+                                                    onChange={(e) => setLocationData({...locationData, longitude: e.target.value})}
+                                                    placeholder="e.g., 77.209021"
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                />
+                                            </div>
+                                            
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Pincode</label>
+                                                <input
+                                                    type="text"
+                                                    value={locationData.pincode}
+                                                    onChange={(e) => setLocationData({...locationData, pincode: e.target.value})}
+                                                    placeholder="e.g., 123456"
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                />
+                                            </div>
+                                            
+                                            {locationUpdateError && (
+                                                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                                                    <p className="text-red-700 text-sm">{locationUpdateError}</p>
+                                                </div>
+                                            )}
+                                            
+                                            {locationUpdateSuccess && (
+                                                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                                                    <p className="text-green-700 text-sm">Location updated successfully!</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-2xl">
+                                <button
+                                    type="button"
+                                    onClick={handleLocationUpdate}
+                                    disabled={updatingLocation}
+                                    className="w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50"
+                                >
+                                    {updatingLocation ? (
+                                        <div className="flex items-center">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                            Updating...
+                                        </div>
+                                    ) : (
+                                        'Update Location'
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLocationModal(false)}
+                                    className="mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 shadow-sm px-6 py-3 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Product Discovery Sections */}
+            {discoveryData && (
+                <div className="container mx-auto px-4 py-8">
+                    <div className="mb-8">
+                        {/* Top Sellers Section */}
+                        <ProductDiscoverySection 
+                            title="Top Sellers" 
+                            products={discoveryData.topSellers} 
+                            onAddToCart={onAddToCart}
+                            icon={TrendingUp}
+                        />
+
+                        {/* New Arrivals Section */}
+                        <ProductDiscoverySection 
+                            title="New Arrivals" 
+                            products={discoveryData.newArrivals} 
+                            onAddToCart={onAddToCart}
+                            icon={Clock}
+                        />
+
+                        {/* Highly Rated Section */}
+                        <ProductDiscoverySection 
+                            title="Highly Rated" 
+                            products={discoveryData.highlyRated} 
+                            onAddToCart={onAddToCart}
+                            icon={Star}
+                        />
+
+                        {/* Trending Section */}
+                        <ProductDiscoverySection 
+                            title="Trending Now" 
+                            products={discoveryData.trending} 
+                            onAddToCart={onAddToCart}
+                            icon={TrendingUp}
+                        />
                     </div>
                 </div>
             )}

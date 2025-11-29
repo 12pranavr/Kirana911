@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MapPin, Phone, Star, Clock, Store, Package, TrendingUp, ShoppingCart, Plus, Minus, User, Filter, X, Check } from 'lucide-react';
+import { Search, MapPin, Phone, Star, Clock, Store, Package, TrendingUp, ShoppingCart, Plus, Minus, User, Filter, X, Check, Navigation } from 'lucide-react';
 import storesService from '../services/stores';
 import { useNavigate } from 'react-router-dom';
 import PremiumProductCard from '../components/PremiumProductCard';
@@ -7,6 +7,7 @@ import CartPreview from '../components/CartPreview';
 import api from '../services/api';
 
 const StoreFinder = () => {
+    const [searchMethod, setSearchMethod] = useState('pincode'); // 'pincode' or 'location'
     const [pincode, setPincode] = useState('');
     const [stores, setStores] = useState([]);
     const [allProducts, setAllProducts] = useState([]); // Combined products from all stores
@@ -31,9 +32,35 @@ const StoreFinder = () => {
     const [currentOrderIndex, setCurrentOrderIndex] = useState(0); // Track current order being processed
     const [completedOrders, setCompletedOrders] = useState([]); // Track completed orders
     const [failedOrders, setFailedOrders] = useState([]); // Track failed orders
+    const [locationStatus, setLocationStatus] = useState('idle'); // 'idle', 'detecting', 'detected', 'error'
+    const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
     const navigate = useNavigate();
 
-    const handleSearch = async (e) => {
+    // Handle location detection
+    const detectLocation = () => {
+        if (!navigator.geolocation) {
+            setError('Geolocation is not supported by your browser');
+            return;
+        }
+
+        setLocationStatus('detecting');
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                setUserLocation({ latitude, longitude });
+                setLocationStatus('detected');
+                // Automatically search for nearby stores
+                handleLocationSearch(latitude, longitude);
+            },
+            (error) => {
+                setLocationStatus('error');
+                setError('Unable to retrieve your location. Please try entering a pincode instead.');
+                console.error('Geolocation error:', error);
+            }
+        );
+    };
+
+    const handlePincodeSearch = async (e) => {
         e.preventDefault();
         if (!pincode.trim()) {
             setError('Please enter a pincode');
@@ -45,32 +72,7 @@ const StoreFinder = () => {
         
         try {
             const nearbyStores = await storesService.getNearbyStores(pincode);
-            setStores(nearbyStores);
-            
-            // Fetch products for all stores
-            const allStoreProducts = [];
-            for (const store of nearbyStores) {
-                try {
-                    const products = await storesService.getStoreProducts(store.id);
-                    // Add store info to each product
-                    const productsWithStoreInfo = products.map(product => ({
-                        ...product,
-                        storeId: store.id,
-                        storeName: store.name,
-                        storeImageUrl: store.image_url // Add store image URL to product
-                    }));
-                    allStoreProducts.push(...productsWithStoreInfo);
-                } catch (err) {
-                    console.error(`Error fetching products for store ${store.id}:`, err);
-                }
-            }
-            
-            setAllProducts(allStoreProducts);
-            setFilteredProducts(allStoreProducts); // Initially show all products
-            setCart([]);
-            setOrderStatus({});
-            setCompletedOrders([]);
-            setFailedOrders([]);
+            processStoresData(nearbyStores);
         } catch (err) {
             console.error('Error fetching stores:', err);
             setError('Failed to fetch stores. Please try again.');
@@ -79,48 +81,97 @@ const StoreFinder = () => {
         }
     };
 
-    // Filter products based on search term and category
-    useEffect(() => {
-        let result = allProducts;
+    const handleLocationSearch = async (latitude, longitude) => {
+        setLoading(true);
+        setError(null);
         
-        // Apply search filter
-        if (searchTerm) {
-            result = result.filter(p =>
-                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.sku_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.category.toLowerCase().includes(searchTerm.toLowerCase())
-            );
+        try {
+            const nearbyStores = await storesService.getNearbyStoresByLocation(latitude, longitude);
+            processStoresData(nearbyStores, latitude, longitude);
+        } catch (err) {
+            console.error('Error fetching stores:', err);
+            setError('Failed to fetch stores. Please try again.');
+        } finally {
+            setLoading(false);
         }
-        
-        // Apply category filter
-        if (selectedCategory !== 'all') {
-            result = result.filter(p => p.category === selectedCategory);
-        }
-        
-        setFilteredProducts(result);
-    }, [searchTerm, selectedCategory, allProducts]);
-
-    // Get unique categories from all products
-    const categories = ['all', ...new Set(allProducts.map(p => p.category).filter(Boolean))];
-    
-    // Get cart item count
-    const getCartItemCount = () => {
-        return cart.reduce((total, item) => total + item.quantity, 0);
     };
 
-    // Calculate total
-    const calculateTotal = () => {
-        return cart.reduce((sum, item) => sum + ((item.selling_price || item.price || 0) * item.quantity), 0);
+    const processStoresData = async (storesData, userLat, userLon) => {
+        // Add distance information to stores if using location search
+        if (searchMethod === 'location' && (userLat && userLon)) {
+            console.log('Processing stores with user location:', { latitude: userLat, longitude: userLon });
+            const storesWithDistance = storesData.map(store => {
+                if (store.latitude && store.longitude) {
+                    const distance = calculateDistance(
+                        userLat, 
+                        userLon, 
+                        store.latitude, 
+                        store.longitude
+                    );
+                    console.log(`Store ${store.name}: ${distance}km from user`);
+                    return { ...store, distance: distance.toFixed(1) };
+                }
+                return { ...store, distance: 'N/A' };
+            });
+            setStores(storesWithDistance);
+        } else {
+            setStores(storesData);
+        }
+        
+        // Fetch products for all stores
+        const allStoreProducts = [];
+        for (const store of storesData) {
+            try {
+                const products = await storesService.getStoreProducts(store.id);
+                // Add store info to each product
+                const productsWithStoreInfo = products.map(product => ({
+                    ...product,
+                    storeId: store.id,
+                    storeName: store.name,
+                    storeImageUrl: store.image_url // Add store image URL to product
+                }));
+                allStoreProducts.push(...productsWithStoreInfo);
+            } catch (err) {
+                console.error(`Error fetching products for store ${store.id}:`, err);
+            }
+        }
+        
+        setAllProducts(allStoreProducts);
+        setFilteredProducts(allStoreProducts); // Initially show all products
+        setCart([]);
+        setOrderStatus({});
+        setCompletedOrders([]);
+        setFailedOrders([]);
     };
 
-    // Add to cart
+    // Calculate distance between two points using haversine formula
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Earth radius in kilometers
+        const dLat = deg2rad(lat2 - lat1);
+        const dLon = deg2rad(lon2 - lon1);
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c; // Distance in kilometers
+        return distance;
+    };
+
+    const deg2rad = (deg) => {
+        return deg * (Math.PI/180);
+    };
+
+    const toggleStoreDetails = (storeId) => {
+        setExpandedStore(expandedStore === storeId ? null : storeId);
+    };
+
     const addToCart = (product) => {
         const stock = product.stock_levels?.[0]?.current_stock || product.stock || 0;
         if (stock === 0) return;
         
         setCart(prevCart => {
             const existingItem = prevCart.find(item => item.id === product.id);
-            
             if (existingItem) {
                 return prevCart.map(item =>
                     item.id === product.id
@@ -133,7 +184,6 @@ const StoreFinder = () => {
         });
     };
 
-    // Update cart quantity
     const updateCartQuantity = (productId, newQuantity) => {
         if (newQuantity <= 0) {
             removeFromCart(productId);
@@ -149,34 +199,15 @@ const StoreFinder = () => {
         );
     };
 
-    // Remove from cart
     const removeFromCart = (productId) => {
         setCart(prevCart => prevCart.filter(item => item.id !== productId));
     };
 
-    // Group cart items by store
-    const getCartItemsByStore = () => {
-        const itemsByStore = {};
-        cart.forEach(item => {
-            if (!itemsByStore[item.storeId]) {
-                itemsByStore[item.storeId] = {
-                    store: stores.find(s => s.id === item.storeId),
-                    items: []
-                };
-            }
-            itemsByStore[item.storeId].items.push(item);
-        });
-        return itemsByStore;
+    const calculateCartTotal = () => {
+        return cart.reduce((sum, item) => sum + (item.selling_price * item.quantity), 0);
     };
 
-    // Calculate store subtotal
-    const calculateStoreSubtotal = (items) => {
-        return items.reduce((sum, item) => sum + ((item.selling_price || item.price || 0) * item.quantity), 0);
-    };
-
-    // Handle place order - place orders one by one
     const handlePlaceOrder = async () => {
-        // Show customer form if not already shown
         if (!showCustomerForm) {
             setShowCustomerForm(true);
             return;
@@ -187,386 +218,95 @@ const StoreFinder = () => {
             return;
         }
 
-        // Prevent multiple clicks
-        if (isPlacingOrders) return;
-        setIsPlacingOrders(true);
-        setShowOrderProgress(true);
-        setCurrentOrderIndex(0);
-        setCompletedOrders([]);
-        setFailedOrders([]);
-
         // Group items by store
-        const itemsByStore = getCartItemsByStore();
-        const storeEntries = Object.entries(itemsByStore);
-        
-        // Process orders one by one
-        for (let i = 0; i < storeEntries.length; i++) {
-            const [storeId, storeData] = storeEntries[i];
-            const storeItems = storeData.items;
-            const store = storeData.store;
+        const itemsByStore = {};
+        cart.forEach(item => {
+            if (!itemsByStore[item.storeId]) {
+                itemsByStore[item.storeId] = [];
+            }
+            itemsByStore[item.storeId].push({
+                product_id: item.id,
+                quantity: item.quantity
+            });
+        });
+
+        // Create separate orders for each store
+        const orderPromises = Object.keys(itemsByStore).map(async (storeId) => {
+            const items = itemsByStore[storeId];
             
-            setCurrentOrderIndex(i + 1);
+            // Get store info
+            const store = stores.find(s => s.id === storeId);
             
-            // Update order status to "processing"
-            setOrderStatus(prev => ({
-                ...prev,
-                [storeId]: { status: 'processing', message: `Placing order with ${store?.name || 'store'}...` }
-            }));
+            const saleData = {
+                customer_id: null, // Anonymous customer
+                items: items,
+                payment_method: 'online',
+                notes: `Online order from store finder. Customer: ${customerDetails.name}, Phone: ${customerDetails.phone}, Address: ${customerDetails.address}, Landmark: ${customerDetails.landmark || 'N/A'}`,
+                source: 'online', // Mark as online order
+                customer_details: customerDetails,
+                intended_store_id: storeId
+            };
 
             try {
-                // Prepare items for the API
-                const items = storeItems.map(item => ({
-                    product_id: item.id,
-                    quantity: item.quantity
-                }));
-
-                // For store orders, we'll create them as "online" sales
-                const saleData = {
-                    customer_id: null, // Anonymous customer
-                    items: items,
-                    payment_method: 'online',
-                    notes: `Online order from multi-store search. Customer: ${customerDetails.name}, Phone: ${customerDetails.phone}, Address: ${customerDetails.address}, Landmark: ${customerDetails.landmark || 'N/A'}, Store: ${store?.name || storeId}`,
-                    source: 'online', // Mark as online order
-                    customer_details: customerDetails, // Include customer details
-                    intended_store_id: storeId // Include the intended store ID
-                };
-
-                // Place order
                 const response = await api.post('/transactions/create', saleData);
-                
-                console.log(`Order placed for store ${storeId}:`, response.data);
-                
-                // Update order status to "success"
-                setOrderStatus(prev => ({
-                    ...prev,
-                    [storeId]: { status: 'success', message: 'Order placed successfully!', orderId: response.data.transaction_id }
-                }));
-                
-                // Add to completed orders
-                setCompletedOrders(prev => [...prev, { 
-                    storeId, 
-                    data: response.data, 
-                    storeName: store?.name || 'Unknown Store' 
-                }]);
-                
+                return { storeId, success: true, data: response.data };
             } catch (error) {
                 console.error(`Error placing order for store ${storeId}:`, error);
-                
-                // Update order status to "error"
-                setOrderStatus(prev => ({
-                    ...prev,
-                    [storeId]: { status: 'error', message: 'Failed to place order' }
-                }));
-                
-                // Add to failed orders
-                setFailedOrders(prev => [...prev, { 
-                    storeId, 
-                    error, 
-                    storeName: store?.name || 'Unknown Store' 
-                }]);
+                return { storeId, success: false, error: error.message };
             }
-        }
-        
-        // All orders processed
-        setIsPlacingOrders(false);
-        
-        // Clear cart only for completed orders
-        if (completedOrders.length > 0) {
-            // Remove items from cart that were successfully ordered
-            const completedStoreIds = completedOrders.map(order => order.storeId);
-            setCart(prevCart => prevCart.filter(item => !completedStoreIds.includes(item.storeId)));
-        }
-    };
-
-    // Close order progress modal and reset
-    const closeOrderProgress = () => {
-        setShowOrderProgress(false);
-        setShowCustomerForm(false);
-        setShowCart(false);
-        setOrderStatus({});
-        setCompletedOrders([]);
-        setFailedOrders([]);
-        setCurrentOrderIndex(0);
-        // Reset customer details
-        setCustomerDetails({
-            name: '',
-            phone: '',
-            address: '',
-            landmark: ''
         });
-    };
 
-    // Toggle store details expansion
-    const toggleStoreDetails = (storeId) => {
-        setExpandedStore(expandedStore === storeId ? null : storeId);
+        try {
+            const results = await Promise.all(orderPromises);
+            const successfulOrders = results.filter(r => r.success);
+            const failedOrders = results.filter(r => !r.success);
+            
+            if (successfulOrders.length > 0) {
+                setCart([]);
+                setShowCart(false);
+                setShowCustomerForm(false);
+                // Reset customer details
+                setCustomerDetails({
+                    name: '',
+                    phone: '',
+                    address: '',
+                    landmark: ''
+                });
+                
+                if (failedOrders.length > 0) {
+                    alert(`Orders placed successfully for ${successfulOrders.length} store(s). Failed for ${failedOrders.length} store(s). Check console for details.`);
+                } else {
+                    alert('Order(s) placed successfully!');
+                }
+            } else {
+                alert('Failed to place orders. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error placing orders:', error);
+            alert('Failed to place orders. Please try again.');
+        }
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-            {/* Order Progress Modal */}
-            {showOrderProgress && (
-                <div className="fixed inset-0 z-50 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
-                        <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
-                                <div className="sm:flex sm:items-start">
-                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                        <h3 className="text-2xl leading-6 font-bold text-gray-900 mb-4">
-                                            Placing Orders
-                                        </h3>
-                                        
-                                        {/* Progress Indicator */}
-                                        <div className="mb-6">
-                                            <div className="flex justify-between text-sm text-gray-600 mb-2">
-                                                <span>Order {currentOrderIndex} of {Object.keys(getCartItemsByStore()).length}</span>
-                                                <span>{Math.round((currentOrderIndex / Object.keys(getCartItemsByStore()).length) * 100)}%</span>
-                                            </div>
-                                            <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                                <div 
-                                                    className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full transition-all duration-300" 
-                                                    style={{ width: `${(currentOrderIndex / Object.keys(getCartItemsByStore()).length) * 100}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Order Status List */}
-                                        <div className="mb-6 max-h-60 overflow-y-auto">
-                                            {Object.entries(getCartItemsByStore()).map(([storeId, storeData], index) => (
-                                                <div key={storeId} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                                                    <div className="flex items-center">
-                                                        <Store className="w-5 h-5 text-gray-500 mr-3" />
-                                                        <span className="font-medium text-gray-900">{storeData.store?.name || 'Unknown Store'}</span>
-                                                    </div>
-                                                    <div>
-                                                        {orderStatus[storeId] ? (
-                                                            <>
-                                                                {orderStatus[storeId].status === 'processing' && (
-                                                                    <div className="flex items-center text-blue-600">
-                                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
-                                                                        <span className="text-sm">Processing</span>
-                                                                    </div>
-                                                                )}
-                                                                {orderStatus[storeId].status === 'success' && (
-                                                                    <div className="flex items-center text-green-600">
-                                                                        <Check className="w-4 h-4 mr-2" />
-                                                                        <span className="text-sm">Success</span>
-                                                                    </div>
-                                                                )}
-                                                                {orderStatus[storeId].status === 'error' && (
-                                                                    <div className="flex items-center text-red-600">
-                                                                        <X className="w-4 h-4 mr-2" />
-                                                                        <span className="text-sm">Failed</span>
-                                                                    </div>
-                                                                )}
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-sm text-gray-400">Pending</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Completion Message */}
-                                        {!isPlacingOrders && (
-                                            <div className="bg-blue-50 rounded-xl p-4">
-                                                <p className="text-sm text-blue-800 text-center">
-                                                    Order placement process completed. Your orders have been placed with different vendors.
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+        <div className="min-h-screen bg-gray-50">
+            {/* Header */}
+            <header className="bg-white shadow-sm">
+                <div className="container mx-auto px-4 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-600 p-2 rounded-lg">
+                                <Store className="w-6 h-6 text-white" />
                             </div>
-                            {!isPlacingOrders && (
-                                <div className="bg-gray-50 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-2xl">
-                                    <button
-                                        type="button"
-                                        onClick={closeOrderProgress}
-                                        className="w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-base font-bold text-white hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5"
-                                    >
-                                        OK
-                                    </button>
-                                </div>
-                            )}
+                            <h1 className="text-xl font-bold text-gray-900">Kirana911</h1>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Cart Preview Component */}
-            <CartPreview
-                isOpen={showCart}
-                onClose={() => setShowCart(false)}
-                cartItems={cart}
-                onUpdateQuantity={updateCartQuantity}
-                onRemoveItem={removeFromCart}
-                onCheckout={() => {
-                    setShowCart(false);
-                    setShowCustomerForm(true);
-                }}
-                totalAmount={calculateTotal()}
-            />
-
-            {/* Customer Form Modal */}
-            {showCustomerForm && (
-                <div className="fixed inset-0 z-50 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowCustomerForm(false)}></div>
-                        <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                            <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
-                                <div className="sm:flex sm:items-start">
-                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                                        <h3 className="text-2xl leading-6 font-bold text-gray-900 mb-6">Customer Information & Order Summary</h3>
-                                        
-                                        {/* Customer Details Form */}
-                                        <div className="mb-8">
-                                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Delivery Information</h4>
-                                            <div className="space-y-5">
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name <span className="text-red-500">*</span></label>
-                                                    <input
-                                                        type="text"
-                                                        value={customerDetails.name}
-                                                        onChange={(e) => setCustomerDetails({...customerDetails, name: e.target.value})}
-                                                        className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
-                                                    <input
-                                                        type="tel"
-                                                        value={customerDetails.phone}
-                                                        onChange={(e) => setCustomerDetails({...customerDetails, phone: e.target.value})}
-                                                        className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Delivery Address <span className="text-red-500">*</span></label>
-                                                    <textarea
-                                                        value={customerDetails.address}
-                                                        onChange={(e) => setCustomerDetails({...customerDetails, address: e.target.value})}
-                                                        rows={3}
-                                                        className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                        required
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Landmark (Optional)</label>
-                                                    <input
-                                                        type="text"
-                                                        value={customerDetails.landmark}
-                                                        onChange={(e) => setCustomerDetails({...customerDetails, landmark: e.target.value})}
-                                                        className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Order Summary */}
-                                        <div>
-                                            <h4 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h4>
-                                            <div className="bg-gray-50 rounded-xl p-4 max-h-60 overflow-y-auto">
-                                                {Object.entries(getCartItemsByStore()).map(([storeId, storeData]) => (
-                                                    <div key={storeId} className="mb-4 pb-4 border-b border-gray-200 last:border-0 last:pb-0 last:mb-0">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            {/* Store Image */}
-                                                            {storeData.store?.image_url ? (
-                                                                <img 
-                                                                    src={storeData.store.image_url} 
-                                                                    alt={storeData.store.name} 
-                                                                    className="w-6 h-6 rounded-full object-cover mr-2"
-                                                                    onError={(e) => {
-                                                                        e.target.style.display = 'none';
-                                                                        e.target.nextSibling.style.display = 'flex';
-                                                                    }}
-                                                                />
-                                                            ) : null}
-                                                            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-1 rounded-full mr-2">
-                                                                <Store className="w-3 h-3 text-white" />
-                                                            </div>
-                                                            <span className="font-medium text-gray-900">{storeData.store?.name || 'Unknown Store'}</span>
-                                                            <span className="font-bold text-gray-900">₹{calculateStoreSubtotal(storeData.items).toFixed(2)}</span>
-                                                        </div>
-                                                        
-                                                        <ul className="mt-2 space-y-1">
-                                                            {storeData.items.map(item => (
-                                                                <li key={item.id} className="flex justify-between text-sm text-gray-600">
-                                                                    <span>{item.quantity} × {item.name}</span>
-                                                                    <span>₹{((item.selling_price || item.price || 0) * item.quantity).toFixed(2)}</span>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </div>
-                                                ))}
-                                                
-                                                <div className="flex justify-between font-bold text-gray-900 pt-4 mt-4 border-t border-gray-300">
-                                                    <span>Total:</span>
-                                                    <span>₹{calculateTotal().toFixed(2)}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="bg-gray-50 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-2xl">
-                                <button
-                                    type="button"
-                                    onClick={handlePlaceOrder}
-                                    disabled={isPlacingOrders}
-                                    className={`w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-base font-bold text-white hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5 ${
-                                        isPlacingOrders ? 'opacity-50 cursor-not-allowed' : ''
-                                    }`}
-                                >
-                                    {isPlacingOrders ? (
-                                        <div className="flex items-center">
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Placing Orders...
-                                        </div>
-                                    ) : (
-                                        'Place All Orders'
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCustomerForm(false)}
-                                    disabled={isPlacingOrders}
-                                    className={`mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 shadow-sm px-6 py-3 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors ${
-                                        isPlacingOrders ? 'opacity-50 cursor-not-allowed' : ''
-                                    }`}
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Header with Cart */}
-            <header className="bg-white/80 backdrop-blur-sm border-b border-gray-100 sticky top-0 z-40">
-                <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-2 rounded-xl shadow-lg">
-                            <Store className="w-6 h-6 text-white" />
-                        </div>
-                        <span className="text-2xl font-bold text-gray-900">Kirana<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-700">Store</span></span>
-                    </div>
-                    <div className="flex items-center gap-4">
                         <button 
                             onClick={() => setShowCart(true)}
-                            className="relative p-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                            className="relative p-2 text-gray-600 hover:text-gray-900"
                         >
                             <ShoppingCart className="w-6 h-6" />
-                            {getCartItemCount() > 0 && (
-                                <span className="absolute -top-2 -right-2 bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg">
-                                    {getCartItemCount()}
+                            {cart.length > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                                    {cart.length}
                                 </span>
                             )}
                         </button>
@@ -574,59 +314,127 @@ const StoreFinder = () => {
                 </div>
             </header>
 
-            {/* Hero Section */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white py-16">
-                <div className="container mx-auto px-4 text-center">
-                    <h1 className="text-4xl md:text-5xl font-bold mb-6">Find Your Nearest Kirana Store</h1>
-                    <p className="text-xl mb-8 max-w-2xl mx-auto">Enter your pincode to discover stores near you and start shopping instantly</p>
-                    
-                    {/* Search Form */}
-                    <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            <div className="flex-1 relative">
-                                <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70 w-5 h-5" />
-                                <input
-                                    type="text"
-                                    value={pincode}
-                                    onChange={(e) => setPincode(e.target.value)}
-                                    placeholder="Enter your pincode"
-                                    className="w-full pl-12 pr-4 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl focus:ring-2 focus:ring-white focus:border-transparent text-white placeholder-white/70 shadow-lg transition-all"
-                                />
-                            </div>
+            <div className="container mx-auto px-4 py-8">
+                {/* Hero Section */}
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl p-8 mb-8">
+                    <div className="max-w-3xl mx-auto text-center">
+                        <h1 className="text-3xl md:text-4xl font-bold mb-4">Find Your Nearest Kirana Store</h1>
+                        <p className="text-lg mb-6 opacity-90">Discover stores near you and start shopping instantly</p>
+                        
+                        {/* Location Method Toggle */}
+                        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-1 mb-6 inline-flex">
                             <button
-                                type="submit"
-                                disabled={loading}
-                                className="px-8 py-4 bg-white text-blue-600 rounded-xl hover:bg-gray-100 transition-all duration-300 font-semibold flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                onClick={() => setSearchMethod('pincode')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    searchMethod === 'pincode' 
+                                        ? 'bg-white text-blue-600 shadow' 
+                                        : 'text-white/80 hover:text-white'
+                                }`}
                             >
-                                {loading ? (
-                                    <>
-                                        <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Searching...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Search className="w-5 h-5" />
-                                        Find Stores
-                                    </>
-                                )}
+                                Enter Pincode
+                            </button>
+                            <button
+                                onClick={() => setSearchMethod('location')}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                                    searchMethod === 'location' 
+                                        ? 'bg-white text-blue-600 shadow' 
+                                        : 'text-white/80 hover:text-white'
+                                }`}
+                            >
+                                Use My Location
                             </button>
                         </div>
-                    </form>
-                </div>
-            </div>
 
-            {/* Search Results Section */}
-            <div className="container mx-auto px-4 py-12">
-                {error && (
-                    <div className="bg-red-100 text-red-700 p-6 rounded-2xl mb-8 shadow-sm max-w-2xl mx-auto">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-red-200 p-2 rounded-lg">
-                                <Store className="w-5 h-5 text-red-700" />
+                        {/* Search Form */}
+                        {searchMethod === 'pincode' ? (
+                            <form onSubmit={handlePincodeSearch} className="max-w-md mx-auto">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex-1 relative">
+                                        <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-blue-500 w-5 h-5" />
+                                        <input
+                                            type="text"
+                                            value={pincode}
+                                            onChange={(e) => setPincode(e.target.value)}
+                                            placeholder="Enter your pincode"
+                                            className="w-full pl-12 pr-4 py-4 bg-white rounded-xl focus:ring-2 focus:ring-white focus:border-transparent text-gray-900 placeholder-gray-500 shadow-lg transition-all"
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="px-6 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:bg-gray-100 transition-all shadow-lg disabled:opacity-70 flex items-center justify-center"
+                                    >
+                                        {loading ? (
+                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                                        ) : (
+                                            <Search className="w-5 h-5" />
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="max-w-md mx-auto">
+                                {locationStatus === 'idle' && (
+                                    <button
+                                        onClick={detectLocation}
+                                        className="px-6 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:bg-gray-100 transition-all shadow-lg flex items-center justify-center gap-2 mx-auto"
+                                    >
+                                        <Navigation className="w-5 h-5" />
+                                        Detect My Location
+                                    </button>
+                                )}
+                                
+                                {locationStatus === 'detecting' && (
+                                    <div className="px-6 py-4 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center gap-3">
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                                        <span>Detecting your location...</span>
+                                    </div>
+                                )}
+                                
+                                {locationStatus === 'detected' && (
+                                    <div className="px-6 py-4 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center gap-2">
+                                        <Check className="w-5 h-5 text-green-300" />
+                                        <span>Location detected successfully!</span>
+                                    </div>
+                                )}
+                                
+                                {locationStatus === 'error' && (
+                                    <button
+                                        onClick={detectLocation}
+                                        className="px-6 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:bg-gray-100 transition-all shadow-lg flex items-center justify-center gap-2 mx-auto"
+                                    >
+                                        <Navigation className="w-5 h-5" />
+                                        Try Again
+                                    </button>
+                                )}
                             </div>
-                            <span className="font-medium">{error}</span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                    <div className="max-w-2xl mx-auto mb-8">
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                            <div className="bg-red-100 p-2 rounded-lg">
+                                <X className="w-5 h-5 text-red-600" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-red-800">Error</h3>
+                                <p className="text-red-700 text-sm mt-1">{error}</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Loading State */}
+                {loading && (
+                    <div className="max-w-2xl mx-auto mb-8">
+                        <div className="bg-white rounded-2xl shadow-sm p-8">
+                            <div className="flex flex-col items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                                <p className="text-gray-600">Finding stores near you...</p>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -639,9 +447,14 @@ const StoreFinder = () => {
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
                                 <div>
                                     <h2 className="text-3xl font-bold text-gray-900">
-                                        Found {stores.length} store{stores.length !== 1 ? 's' : ''} near {pincode}
+                                        Found {stores.length} store{stores.length !== 1 ? 's' : ''} near you
                                     </h2>
-                                    <p className="text-gray-600 mt-2">Choose your preferred store or browse all products below</p>
+                                    {searchMethod === 'pincode' ? (
+                                        <p className="text-gray-600 mt-2">Stores in pincode {pincode}</p>
+                                    ) : (
+                                        <p className="text-gray-600 mt-2">Within 5km radius from your location</p>
+                                    )}
+
                                 </div>
                                 <div className="flex gap-3">
                                     <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-xl flex items-center gap-2">
@@ -650,46 +463,30 @@ const StoreFinder = () => {
                                     </div>
                                     <div className="bg-green-100 text-green-800 px-4 py-2 rounded-xl flex items-center gap-2">
                                         <TrendingUp className="w-4 h-4" />
-                                        <span className="font-medium">Fast delivery</span>
+                                        <span className="font-medium">Verified</span>
                                     </div>
                                 </div>
                             </div>
                             
-                            {/* Modern Store Cards Grid */}
+                            {/* Stores Grid */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {stores.map(store => (
-                                    <div 
-                                        key={store.id} 
-                                        className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 group overflow-hidden transform hover:-translate-y-1"
-                                    >
-                                        {/* Store Image Header */}
-                                        <div className="relative h-48 overflow-hidden">
-                                            {store.image_url ? (
-                                                <img 
-                                                    src={store.image_url} 
-                                                    alt={store.name} 
-                                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.parentElement.innerHTML = '<div class="bg-gradient-to-r from-blue-400 to-indigo-500 w-full h-full flex items-center justify-center"><Store className="w-12 h-12 text-white" /></div>';
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div className="bg-gradient-to-r from-blue-400 to-indigo-500 w-full h-full flex items-center justify-center">
-                                                    <Store className="w-12 h-12 text-white" />
-                                                </div>
-                                            )}
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-                                            <div className="absolute bottom-4 left-4">
-                                                <h3 className="font-bold text-xl text-white group-hover:text-blue-200 transition-colors">{store.name}</h3>
+                                {stores.map((store) => (
+                                    <div key={store.id} className="bg-white rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-all duration-300">
+                                        {store.image_url ? (
+                                            <img 
+                                                src={store.image_url} 
+                                                alt={store.name}
+                                                className="w-full h-48 object-cover"
+                                            />
+                                        ) : (
+                                            <div className="bg-gray-100 w-full h-48 flex items-center justify-center">
+                                                <Store className="w-12 h-12 text-gray-400" />
                                             </div>
-                                        </div>
+                                        )}
                                         
                                         <div className="p-6">
                                             <div className="flex justify-between items-start mb-4">
-                                                <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
-                                                    {store.pincode}
-                                                </span>
+                                                <h3 className="text-xl font-bold text-gray-900">{store.name}</h3>
                                                 <div className="flex items-center bg-yellow-100 px-2 py-1 rounded-lg">
                                                     <Star className="w-4 h-4 text-yellow-500 fill-current" />
                                                     <span className="text-sm text-gray-700 ml-1 font-semibold">4.8</span>
@@ -701,24 +498,31 @@ const StoreFinder = () => {
                                                 <p className="text-gray-600 text-sm">{store.address}</p>
                                             </div>
                                             
+                                            {/* Distance indicator for location search */}
+                                            {searchMethod === 'location' && store.distance && (
+                                                <div className="flex items-center mb-4 text-sm">
+                                                    <Navigation className="w-4 h-4 text-blue-500 mr-2" />
+                                                    <span className="text-gray-700">{store.distance} km away</span>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Pincode badge for pincode search */}
+                                            {searchMethod === 'pincode' && (
+                                                <div className="flex items-center mb-4">
+                                                    <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
+                                                        {store.pincode}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            
                                             <div className="flex items-center justify-between mb-6">
                                                 <div className="flex items-center">
-                                                    <div className="bg-green-100 p-2 rounded-lg">
-                                                        <Clock className="w-5 h-5 text-green-600" />
-                                                    </div>
-                                                    <div className="ml-3">
-                                                        <div className="font-semibold text-gray-900">10-20 mins</div>
-                                                        <div className="text-xs text-gray-500">Delivery</div>
-                                                    </div>
+                                                    <Phone className="w-4 h-4 text-gray-500 mr-2" />
+                                                    <span className="text-sm text-gray-700">{store.phone || 'N/A'}</span>
                                                 </div>
-                                                <div className="flex items-center">
-                                                    <div className="bg-blue-100 p-2 rounded-lg">
-                                                        <Phone className="w-5 h-5 text-blue-600" />
-                                                    </div>
-                                                    <div className="ml-3">
-                                                        <div className="font-semibold text-gray-900 text-sm">{store.phone}</div>
-                                                        <div className="text-xs text-gray-500">Contact</div>
-                                                    </div>
+                                                <div className="ml-3">
+                                                    <div className="font-semibold text-gray-900 text-sm">{store.phone || 'N/A'}</div>
+                                                    <div className="text-xs text-gray-500">Contact</div>
                                                 </div>
                                             </div>
                                             
@@ -775,64 +579,160 @@ const StoreFinder = () => {
                                             placeholder="Search products by name, SKU, or category..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="w-full pl-12 pr-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm focus:shadow-md transition-all text-lg"
+                                            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
                                         />
                                     </div>
                                 </div>
+                                
                                 <div className="w-full lg:w-64">
                                     <select
                                         value={selectedCategory}
                                         onChange={(e) => setSelectedCategory(e.target.value)}
-                                        className="w-full px-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm focus:shadow-md transition-all text-lg font-medium"
+                                        className="w-full px-4 py-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
                                     >
-                                        {categories.map(category => (
-                                            <option key={category} value={category}>
-                                                {category === 'all' ? 'All Categories' : category}
-                                            </option>
-                                        ))}
+                                        <option value="all">All Categories</option>
+                                        <option value="groceries">Groceries</option>
+                                        <option value="dairy">Dairy</option>
+                                        <option value="bakery">Bakery</option>
+                                        <option value="beverages">Beverages</option>
+                                        <option value="snacks">Snacks</option>
                                     </select>
                                 </div>
                             </div>
                             
                             {/* Products Grid */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                                {filteredProducts.map(product => {
-                                    return (
-                                        <PremiumProductCard
-                                            key={`${product.id}-${product.storeId}`}
+                            {filteredProducts.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                    {filteredProducts.map((product) => (
+                                        <PremiumProductCard 
+                                            key={`${product.storeId}-${product.id}`}
                                             product={product}
                                             onAddToCart={addToCart}
                                         />
-                                    );
-                                })}
-                                
-                                {filteredProducts.length === 0 && !loading && (
-                                    <div className="col-span-full text-center py-16">
-                                        <div className="bg-gray-100 p-6 rounded-2xl w-24 h-24 mx-auto flex items-center justify-center mb-6">
-                                            <Package className="w-12 h-12 text-gray-400" />
-                                        </div>
-                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">No products found</h3>
-                                        <p className="text-gray-500 text-lg">Try adjusting your search or filter criteria</p>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-16">
+                                    <div className="bg-gray-100 p-6 rounded-2xl w-24 h-24 mx-auto flex items-center justify-center mb-6">
+                                        <Package className="w-12 h-12 text-gray-400" />
                                     </div>
-                                )}
-                            </div>
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-2">No products found</h3>
+                                    <p className="text-gray-500 text-lg">Try adjusting your search or filter criteria</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
 
-                {!loading && pincode && stores.length === 0 && (
+                {!loading && (
+                    (searchMethod === 'pincode' && pincode && stores.length === 0) ||
+                    (searchMethod === 'location' && locationStatus === 'detected' && stores.length === 0)
+                ) && (
                     <div className="max-w-2xl mx-auto">
                         <div className="text-center py-16">
                             <div className="bg-gray-100 p-6 rounded-2xl w-24 h-24 mx-auto flex items-center justify-center mb-6">
                                 <Store className="w-12 h-12 text-gray-400" />
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 mb-3">No stores found</h3>
-                            <p className="text-gray-500 text-lg mb-2">We couldn't find any stores for pincode {pincode}</p>
-                            <p className="text-gray-400">Try another pincode or contact support</p>
+                            {searchMethod === 'pincode' ? (
+                                <p className="text-gray-500 text-lg mb-2">We couldn't find any stores for pincode {pincode}</p>
+                            ) : (
+                                <p className="text-gray-500 text-lg mb-2">We couldn't find any stores within 5km of your location</p>
+                            )}
+                            <p className="text-gray-400">Try another search method or contact support</p>
                         </div>
                     </div>
                 )}
             </div>
+            
+            {/* Cart Preview Sidebar */}
+            {showCart && (
+                <CartPreview 
+                    isOpen={showCart}
+                    onClose={() => setShowCart(false)}
+                    cartItems={cart}
+                    onUpdateQuantity={updateCartQuantity}
+                    onRemoveItem={removeFromCart}
+                    onCheckout={handlePlaceOrder}
+                    totalAmount={calculateCartTotal()}
+                />
+            )}
+
+            {/* Customer Form Modal */}
+            {showCustomerForm && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowCustomerForm(false)}></div>
+                        <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                                <div className="sm:flex sm:items-start">
+                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                                        <h3 className="text-2xl leading-6 font-bold text-gray-900 mb-6">Customer Information</h3>
+                                        <div className="mt-4 space-y-5">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    value={customerDetails.name}
+                                                    onChange={(e) => setCustomerDetails({...customerDetails, name: e.target.value})}
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="tel"
+                                                    value={customerDetails.phone}
+                                                    onChange={(e) => setCustomerDetails({...customerDetails, phone: e.target.value})}
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Delivery Address <span className="text-red-500">*</span></label>
+                                                <textarea
+                                                    value={customerDetails.address}
+                                                    onChange={(e) => setCustomerDetails({...customerDetails, address: e.target.value})}
+                                                    rows={3}
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Landmark (Optional)</label>
+                                                <input
+                                                    type="text"
+                                                    value={customerDetails.landmark}
+                                                    onChange={(e) => setCustomerDetails({...customerDetails, landmark: e.target.value})}
+                                                    className="mt-1 block w-full border border-gray-200 rounded-xl shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-2xl">
+                                <button
+                                    type="button"
+                                    onClick={handlePlaceOrder}
+                                    className="w-full inline-flex justify-center rounded-xl border border-transparent shadow-lg px-6 py-3 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all duration-300 transform hover:-translate-y-0.5"
+                                >
+                                    Place Order
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCustomerForm(false)}
+                                    className="mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 shadow-sm px-6 py-3 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };

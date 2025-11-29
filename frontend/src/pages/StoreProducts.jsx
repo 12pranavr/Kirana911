@@ -4,6 +4,9 @@ import storesService from '../services/stores';
 import { supabase } from '../services/supabase'; // Import Supabase client
 import api from '../services/api';
 import StoreTemplate from '../components/StoreTemplate';
+import discoveryService from '../services/discovery';
+import ProductDiscoverySection from '../components/ProductDiscoverySection';
+import { TrendingUp, Clock, Star } from 'lucide-react';
 
 const StoreProducts = () => {
     const { storeId } = useParams();
@@ -22,10 +25,26 @@ const StoreProducts = () => {
         landmark: ''
     });
     const [showCustomerForm, setShowCustomerForm] = useState(false);
+    const [discoveryData, setDiscoveryData] = useState({
+        topSellers: [],
+        newArrivals: [],
+        highlyRated: [],
+        trending: []
+    });
 
     useEffect(() => {
         fetchStoreData();
+        fetchDiscoveryData();
     }, [storeId]);
+
+    const fetchDiscoveryData = async () => {
+        try {
+            const data = await discoveryService.getDiscoveryData();
+            setDiscoveryData(data);
+        } catch (error) {
+            console.error('Error fetching discovery data:', error);
+        }
+    };
 
     const fetchStoreData = async () => {
         try {
@@ -180,6 +199,7 @@ const StoreProducts = () => {
             setCustomerDetails={setCustomerDetails}
             showCustomerForm={showCustomerForm}
             setShowCustomerForm={setShowCustomerForm}
+            discoveryData={discoveryData}
         />
     );
 };

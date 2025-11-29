@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Store, TrendingUp, Users, Shield, ArrowRight, Package, MapPin, Star } from 'lucide-react';
+import { ShoppingCart, Store, TrendingUp, Users, Shield, ArrowRight, Package, MapPin, Star, Clock } from 'lucide-react';
 
 const Landing = () => {
     const navigate = useNavigate();
@@ -37,6 +37,12 @@ const Landing = () => {
         { name: "Snacks", icon: "🍿", count: "110+ items" }
     ];
 
+    const handleAddToCart = (product) => {
+        // Placeholder for add to cart functionality
+        console.log('Adding to cart:', product);
+        // In a real implementation, this would integrate with a cart system
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
             {/* Navigation */}
@@ -56,7 +62,7 @@ const Landing = () => {
                             Owner Login
                         </button>
                         <button
-                            onClick={() => navigate('/products')}
+                            onClick={() => navigate('/stores')}
                             className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:to-indigo-800 font-medium flex items-center gap-2 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                         >
                             Shop Now
@@ -129,6 +135,18 @@ const Landing = () => {
                         </div>
                         <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-2xl shadow-xl transform rotate-12"></div>
                         <div className="absolute -top-6 -right-6 w-16 h-16 bg-gradient-to-r from-green-400 to-emerald-500 rounded-2xl shadow-xl transform -rotate-12"></div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Product Discovery Sections */}
+            <div className="container mx-auto px-4 py-8">
+                <div className="mb-16">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-gray-900 mb-4">Discover Amazing Products</h2>
+                        <p className="text-gray-600 max-w-2xl mx-auto">
+                            Explore our curated selection of the best products from local stores
+                        </p>
                     </div>
                 </div>
             </div>

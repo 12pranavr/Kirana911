@@ -12,6 +12,17 @@ const storesService = {
     }
   },
 
+  // Get nearby stores by geolocation
+  getNearbyStoresByLocation: async (latitude, longitude) => {
+    try {
+      const response = await api.get(`/stores/nearby-location?latitude=${latitude}&longitude=${longitude}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching nearby stores by location:', error);
+      throw error;
+    }
+  },
+
   // Get all stores (admin only)
   getAllStores: async () => {
     try {
@@ -74,6 +85,32 @@ const storesService = {
       return response.data;
     } catch (error) {
       console.error('Error fetching store details:', error);
+      throw error;
+    }
+  },
+
+  // Get current user's store
+  getCurrentUserStore: async () => {
+    try {
+      const response = await api.get('/stores/user-store');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching current user store:', error);
+      throw error;
+    }
+  },
+
+  // Update store location
+  updateStoreLocation: async (storeId, latitude, longitude) => {
+    try {
+      const response = await api.post('/stores/update', {
+        id: storeId,
+        latitude: latitude,
+        longitude: longitude
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error updating store location:', error);
       throw error;
     }
   }

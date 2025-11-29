@@ -11,7 +11,7 @@ router.get('/products', async (req, res) => {
         
         let query = supabase
             .from('products')
-            .select('*, stock_levels(current_stock)');
+            .select('*, stock_levels(current_stock), stores(name)');
             
         // If user is an owner, filter by their store
         if (userStore.role === 'owner' && userStore.store_id) {
@@ -27,13 +27,89 @@ router.get('/products', async (req, res) => {
             // If no auth header, return all products (for backward compatibility)
             const { data, error: dbError } = await supabase
                 .from('products')
-                .select('*, stock_levels(current_stock)');
+                .select('*, stock_levels(current_stock), stores(name)');
                 
             if (dbError) return res.status(500).json({ error: dbError.message });
             res.json(data);
         } else {
             res.status(500).json({ error: error.message });
         }
+    }
+});
+
+// Get product discovery data for marketplace sections
+router.get('/discovery', async (req, res) => {
+    try {
+        // Get all products with store information
+        const { data: allProducts, error: productsError } = await supabase
+            .from('products')
+            .select('*, stock_levels(current_stock), stores(name)')
+            .order('created_at', { ascending: false });
+
+        if (productsError) {
+            console.error('Products fetch error:', productsError);
+            return res.status(500).json({ error: productsError.message });
+        }
+
+        // Get top selling products based on sales quantity
+        const { data: salesData, error: salesError } = await supabase
+            .from('sales')
+            .select('product_id, qty_sold')
+            .order('qty_sold', { ascending: false })
+            .limit(20);
+
+        if (salesError) {
+            console.error('Sales fetch error:', salesError);
+        }
+
+        // Create a map of product sales for quick lookup
+        const productSalesMap = {};
+        if (salesData) {
+            salesData.forEach(sale => {
+                productSalesMap[sale.product_id] = (productSalesMap[sale.product_id] || 0) + sale.qty_sold;
+            });
+        }
+
+        // Add sales data to products
+        const productsWithSales = allProducts.map(product => ({
+            ...product,
+            sales_count: productSalesMap[product.id] || 0
+        }));
+
+        // Sort products for different sections
+        const topSellers = [...productsWithSales]
+            .sort((a, b) => b.sales_count - a.sales_count)
+            .slice(0, 10);
+
+        const newArrivals = [...productsWithSales]
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 10);
+
+        const highlyRated = [...productsWithSales]
+            .sort((a, b) => b.sales_count - a.sales_count) // Using sales as proxy for ratings
+            .slice(0, 10);
+
+        // For trending, we'll use a combination of recent sales and newness
+        const trending = [...productsWithSales]
+            .sort((a, b) => {
+                // Weighted score: 70% recent sales, 30% newness
+                const aScore = (a.sales_count * 0.7) + 
+                              ((new Date().getTime() - new Date(a.created_at).getTime()) / (1000 * 60 * 60 * 24) * 0.3);
+                const bScore = (b.sales_count * 0.7) + 
+                              ((new Date().getTime() - new Date(b.created_at).getTime()) / (1000 * 60 * 60 * 24) * 0.3);
+                return bScore - aScore;
+            })
+            .slice(0, 10);
+
+        res.json({
+            topSellers,
+            newArrivals,
+            highlyRated,
+            trending
+        });
+    } catch (error) {
+        console.error('Discovery data error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 

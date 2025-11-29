@@ -65,6 +65,62 @@ router.get('/nearby/:pincode', async (req, res) => {
     }
 });
 
+// Public route - Get nearby stores by geolocation (no authentication required)
+router.get('/nearby-location', async (req, res) => {
+    try {
+        const { latitude, longitude } = req.query;
+        
+        if (!latitude || !longitude) {
+            return res.status(400).json({ error: 'Latitude and longitude are required' });
+        }
+        
+        const lat = parseFloat(latitude);
+        const lon = parseFloat(longitude);
+        
+        // Get all active stores
+        const { data: stores, error } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('is_active', true);
+            
+        if (error) return res.status(500).json({ error: error.message });
+        
+        // Filter stores within 5km range using haversine formula
+        const nearbyStores = stores.filter(store => {
+            if (!store.latitude || !store.longitude) return false;
+            
+            const distance = calculateDistance(lat, lon, store.latitude, store.longitude);
+            // Debug logging
+            console.log(`Store ${store.name}: ${distance}km from user (${lat}, ${lon})`);
+            return distance <= 5; // Within 5km
+        });
+        
+        console.log(`Found ${nearbyStores.length} stores within 5km`);
+        res.json(nearbyStores);
+    } catch (error) {
+        console.error('Error fetching nearby stores by location:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Helper function to calculate distance between two points using haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Earth radius in kilometers
+    const dLat = deg2rad(lat2 - lat1);
+    const dLon = deg2rad(lon2 - lon1);
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c; // Distance in kilometers
+    return distance;
+}
+
+function deg2rad(deg) {
+    return deg * (Math.PI/180);
+}
+
 // Public route - Get store products (no authentication required)
 router.get('/:id/products', async (req, res) => {
     try {

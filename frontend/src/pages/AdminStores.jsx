@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import storesService from '../services/stores';
-import { Plus, Edit, Trash2, Store, MapPin, Phone, Mail, Link as LinkIcon, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Store, MapPin, Phone, Mail, Link as LinkIcon, X, Navigation } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,6 +22,8 @@ const AdminStores = () => {
         image_url: ''
     });
     const [userRole, setUserRole] = useState(null);
+    const [detectingLocation, setDetectingLocation] = useState({}); // Track which stores are detecting location
+    const [manualLocations, setManualLocations] = useState({}); // Track manual location inputs
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -178,6 +180,132 @@ const AdminStores = () => {
         });
         setEditingStore(null);
         setShowForm(false);
+    };
+
+    // Function to detect and save location for a specific store
+    const detectAndSaveLocation = async (storeId) => {
+        // Check if geolocation is supported
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+
+        // Set detecting state for this store
+        setDetectingLocation(prev => ({ ...prev, [storeId]: true }));
+
+        try {
+            // Get current position
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    
+                    // Find the store in the stores array
+                    const store = stores.find(s => s.id === storeId);
+                    if (!store) {
+                        throw new Error('Store not found');
+                    }
+
+                    // Update store with new location
+                    const updatedStore = {
+                        ...store,
+                        latitude: latitude,
+                        longitude: longitude
+                    };
+
+                    // Save to backend
+                    await storesService.updateStore(updatedStore);
+                    
+                    // Update local state
+                    setStores(prevStores => 
+                        prevStores.map(s => 
+                            s.id === storeId 
+                                ? { ...s, latitude: latitude, longitude: longitude }
+                                : s
+                        )
+                    );
+                    
+                    // Reset detecting state
+                    setDetectingLocation(prev => ({ ...prev, [storeId]: false }));
+                    
+                    alert(`Location updated successfully!\nLatitude: ${latitude}\nLongitude: ${longitude}`);
+
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    setDetectingLocation(prev => ({ ...prev, [storeId]: false }));
+                    alert('Failed to get location: ' + error.message);
+                }
+            );
+        } catch (err) {
+            console.error('Error detecting location:', err);
+            setDetectingLocation(prev => ({ ...prev, [storeId]: false }));
+            alert('Failed to detect location: ' + err.message);
+        }
+    };
+
+    // Function to handle manual location input changes
+    const handleLocationChange = (storeId, field, value) => {
+        setManualLocations(prev => ({
+            ...prev,
+            [storeId]: {
+                ...prev[storeId],
+                [field]: value
+            }
+        }));
+    };
+
+    // Function to save manually entered location
+    const saveManualLocation = async (storeId) => {
+        try {
+            const locationData = manualLocations[storeId];
+            if (!locationData) return;
+
+            // Validate inputs
+            const lat = parseFloat(locationData.latitude);
+            const lng = parseFloat(locationData.longitude);
+            
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Please enter valid latitude and longitude values');
+                return;
+            }
+
+            // Find the store in the stores array
+            const store = stores.find(s => s.id === storeId);
+            if (!store) {
+                throw new Error('Store not found');
+            }
+
+            // Update store with new location
+            const updatedStore = {
+                ...store,
+                latitude: lat,
+                longitude: lng
+            };
+
+            // Save to backend
+            await storesService.updateStore(updatedStore);
+            
+            // Update local state
+            setStores(prevStores => 
+                prevStores.map(s => 
+                    s.id === storeId 
+                        ? { ...s, latitude: lat, longitude: lng }
+                        : s
+                )
+            );
+            
+            // Clear manual location input
+            setManualLocations(prev => {
+                const newLocations = { ...prev };
+                delete newLocations[storeId];
+                return newLocations;
+            });
+            
+            alert(`Location updated successfully!\nLatitude: ${lat}\nLongitude: ${lng}`);
+        } catch (err) {
+            console.error('Error saving manual location:', err);
+            alert('Failed to save location: ' + err.message);
+        }
     };
 
     // If user is not admin, don't render the component
@@ -453,6 +581,54 @@ const AdminStores = () => {
                                                     {store.latitude}, {store.longitude}
                                                 </div>
                                             )}
+                                            {/* Manual Location Input */}
+                                            <div className="mt-2 flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Lat"
+                                                    value={manualLocations[store.id]?.latitude || store.latitude || ''}
+                                                    onChange={(e) => handleLocationChange(store.id, 'latitude', e.target.value)}
+                                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Lng"
+                                                    value={manualLocations[store.id]?.longitude || store.longitude || ''}
+                                                    onChange={(e) => handleLocationChange(store.id, 'longitude', e.target.value)}
+                                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md"
+                                                />
+                                                <button
+                                                    onClick={() => saveManualLocation(store.id)}
+                                                    className="px-2 py-1 text-sm bg-green-100 text-green-700 rounded-md hover:bg-green-200"
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                            {/* Detect Location Button */}
+                                            <button
+                                                onClick={() => detectAndSaveLocation(store.id)}
+                                                disabled={detectingLocation[store.id]}
+                                                className={`mt-2 inline-flex items-center px-3 py-1 rounded-md text-sm font-medium ${
+                                                    detectingLocation[store.id]
+                                                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                                }`}
+                                            >
+                                                {detectingLocation[store.id] ? (
+                                                    <>
+                                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                        Detecting...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Navigation className="mr-1 h-4 w-4" />
+                                                        Detect Location
+                                                    </>
+                                                )}
+                                            </button>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
