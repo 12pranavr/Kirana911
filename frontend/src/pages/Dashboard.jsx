@@ -93,12 +93,12 @@ const Dashboard = () => {
                     icon={DollarSign}
                     color="bg-gradient-to-r from-green-500 to-emerald-600"
                 />
-                <StatCard
+                {/* <StatCard
                     title="Net Profit"
                     value={`₹${stats.profit.toLocaleString()}`}
                     icon={TrendingUp}
                     color="bg-gradient-to-r from-blue-500 to-indigo-600"
-                />
+                /> */}
                 <StatCard
                     title="Low Stock Items"
                     value={stats.lowStockCount}
