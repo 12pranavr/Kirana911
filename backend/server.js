@@ -14,19 +14,29 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     // Get allowed origins from environment variable or use defaults
-    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000,https://kirana911.vercel.app/';
+    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000,https://kirana911.vercel.app';
     const allowedOrigins = allowedOriginsEnv.split(',');
     
+    // Log the origin for debugging
+    console.log('CORS Origin:', origin);
+    console.log('Allowed Origins:', allowedOrigins);
+    
     // Check if the origin is in our allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // For development, allow all origins
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Access-Control-Allow-Origin']
 };
 
 app.use(cors(corsOptions));
