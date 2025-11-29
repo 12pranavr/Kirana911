@@ -23,9 +23,29 @@ router.post('/', async (req, res) => {
             console.log('No authentication provided, continuing without store filtering');
         }
 
+        // Get store name if user is an owner
+        let storeName = null;
+        if (userStore && userStore.role === 'owner' && userStore.store_id) {
+            try {
+                const { data: storeData, error } = await supabase
+                    .from('stores')
+                    .select('name')
+                    .eq('id', userStore.store_id)
+                    .single();
+                
+                if (!error && storeData) {
+                    storeName = storeData.name;
+                    console.log('Store name:', storeName);
+                }
+            } catch (storeError) {
+                console.error('Error fetching store name:', storeError);
+            }
+        }
+
         // 1. Build context (filtered by store for owners)
         const context = await buildChatContext(
-            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null
+            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null,
+            storeName
         );
         const fullMessage = `${context}\n\nUser: ${message}`;
 

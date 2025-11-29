@@ -1,12 +1,28 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Mic, MicOff } from 'lucide-react';
 import api from '../services/api';
 
-const ChatWidget = () => {
+const ChatWidget = ({ userName, storeInfo }) => {
+    console.log('ChatWidget props:', { userName, storeInfo });
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState([
-        { role: 'assistant', text: 'Hello! I am your KIRANA911 Assistant. How can I help you today?' }
-    ]);
+    const [messages, setMessages] = useState([]);
+    
+    // Initialize messages with personalized greeting
+    useEffect(() => {
+        let greeting = 'Hello! I am your KIRANA911 Assistant. How can I help you today?';
+        
+        if (userName) {
+            if (storeInfo && storeInfo.name) {
+                greeting = `Hello ${userName}! I am your KIRANA911 Assistant for ${storeInfo.name}. How can I help you today?`;
+            } else {
+                greeting = `Hello ${userName}! I am your KIRANA911 Assistant. How can I help you today?`;
+            }
+        }
+        
+        setMessages([
+            { role: 'assistant', text: greeting }
+        ]);
+    }, [userName, storeInfo]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -191,6 +207,11 @@ const ChatWidget = () => {
             )}
         </div>
     );
+};
+
+ChatWidget.defaultProps = {
+    userName: '',
+    storeInfo: null
 };
 
 export default ChatWidget;

@@ -1,10 +1,11 @@
 const supabase = require('./supabaseClient');
 
-async function buildChatContext(storeId = null) {
+async function buildChatContext(storeId = null, storeName = null) {
     try {
         // Fetch low stock items (filtered by store)
         let lowStock = [];
         try {
+            console.log('Fetching low stock items for store:', storeId);
             let lowStockQuery = supabase
                 .from('products')
                 .select('name, stock_levels(current_stock)')
@@ -13,6 +14,7 @@ async function buildChatContext(storeId = null) {
             
             if (storeId) {
                 lowStockQuery = lowStockQuery.eq('store_id', storeId);
+                console.log('Applying store filter for low stock items');
             }
             
             const lowStockResult = await lowStockQuery;
@@ -30,18 +32,20 @@ async function buildChatContext(storeId = null) {
         // Fetch recent sales (last 24 hours) (filtered by store)
         let recentSales = [];
         try {
+            console.log('Fetching recent sales for store:', storeId);
             const now = new Date();
             const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // Exactly 24 hours ago
             
             let recentSalesQuery = supabase
                 .from('sales')
-                .select('products(name, cost_price), qty_sold, total_price, date')
+                .select('products(name, cost_price), qty_sold, total_price, date, store_id')
                 .gte('date', twentyFourHoursAgo.toISOString())
                 .order('date', { ascending: false })
                 .limit(10);
                 
             if (storeId) {
                 recentSalesQuery = recentSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for recent sales');
             }
             
             const recentSalesResult = await recentSalesQuery;
@@ -58,12 +62,13 @@ async function buildChatContext(storeId = null) {
             // Also fetch all sales for broader context
             let allSalesQuery = supabase
                 .from('sales')
-                .select('products(name, cost_price), qty_sold, total_price, date')
+                .select('products(name, cost_price), qty_sold, total_price, date, store_id')
                 .order('date', { ascending: false })
                 .limit(50);
                 
             if (storeId) {
                 allSalesQuery = allSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for all sales');
             }
             
             const allSalesResult = await allSalesQuery;
@@ -100,14 +105,16 @@ async function buildChatContext(storeId = null) {
         // Fetch top products by sales volume (manual grouping) (filtered by store)
         let allRecentSales = [];
         try {
+            console.log('Fetching top products sales for store:', storeId);
             let allRecentSalesQuery = supabase
                 .from('sales')
-                .select('products(name), qty_sold')
+                .select('products(name), qty_sold, store_id')
                 .gte('date', twentyFourHoursAgo.toISOString())
                 .order('date', { ascending: false });
                 
             if (storeId) {
                 allRecentSalesQuery = allRecentSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for top products sales');
             }
             
             const allRecentSalesResult = await allRecentSalesQuery;
@@ -119,12 +126,13 @@ async function buildChatContext(storeId = null) {
             // Also fetch all sales for top products calculation (broader timeframe)
             let broaderSalesQuery = supabase
                 .from('sales')
-                .select('products(name), qty_sold')
+                .select('products(name), qty_sold, store_id')
                 .order('date', { ascending: false })
                 .limit(200); // Larger sample for better top products analysis
                 
             if (storeId) {
                 broaderSalesQuery = broaderSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for broader sales');
             }
             
             const broaderSalesResult = await broaderSalesQuery;
@@ -169,12 +177,14 @@ async function buildChatContext(storeId = null) {
         // Fetch customers data with purchase history (filtered by store)
         let customersWithPurchases = [];
         try {
+            console.log('Fetching customers for store:', storeId);
             let customersQuery = supabase
                 .from('customers')
-                .select('name, email, role');
+                .select('name, email, role, store_id');
                 
             if (storeId) {
                 customersQuery = customersQuery.eq('store_id', storeId);
+                console.log('Applying store filter for customers');
             }
             
             const customersResult = await customersQuery;
@@ -192,14 +202,16 @@ async function buildChatContext(storeId = null) {
         // Fetch sales with customer information to identify top customers (filtered by store)
         let salesWithCustomers = [];
         try {
+            console.log('Fetching sales with customers for store:', storeId);
             let salesWithCustomersQuery = supabase
                 .from('sales')
-                .select('customer_id, total_price, qty_sold, customers(name, email)')
+                .select('customer_id, total_price, qty_sold, customers(name, email), store_id')
                 .order('date', { ascending: false })
                 .limit(50);
                 
             if (storeId) {
                 salesWithCustomersQuery = salesWithCustomersQuery.eq('store_id', storeId);
+                console.log('Applying store filter for sales with customers');
             }
             
             const salesWithCustomersResult = await salesWithCustomersQuery;
@@ -256,13 +268,15 @@ async function buildChatContext(storeId = null) {
         // Fetch products data (filtered by store)
         let products = [];
         try {
+            console.log('Fetching products for store:', storeId);
             let productsQuery = supabase
                 .from('products')
-                .select('name, category, selling_price, stock_levels(current_stock)')
+                .select('name, category, selling_price, stock_levels(current_stock), store_id')
                 .limit(20);
                 
             if (storeId) {
                 productsQuery = productsQuery.eq('store_id', storeId);
+                console.log('Applying store filter for products');
             }
             
             const productsResult = await productsQuery;
@@ -274,14 +288,16 @@ async function buildChatContext(storeId = null) {
         // Fetch transactions data (last 10) (filtered by store)
         let recentTransactions = [];
         try {
+            console.log('Fetching transactions for store:', storeId);
             let transactionsQuery = supabase
                 .from('transactions')
-                .select('type, amount, category, note, date')
+                .select('type, amount, category, note, date, store_id')
                 .order('date', { ascending: false })
                 .limit(10);
                 
             if (storeId) {
                 transactionsQuery = transactionsQuery.eq('store_id', storeId);
+                console.log('Applying store filter for transactions');
             }
             
             const transactionsResult = await transactionsQuery;
@@ -321,6 +337,7 @@ async function buildChatContext(storeId = null) {
         
         const context = `
 You are KIRANA911 Assistant, a helpful shop manager AI with access to comprehensive shop data.
+${storeName ? `You are assisting the owner of ${storeName}.` : 'You are assisting a KIRANA911 user.'}
 
 Current Context:
 - Today's Date: ${new Date().toLocaleDateString()}

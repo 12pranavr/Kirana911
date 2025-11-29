@@ -19,6 +19,25 @@ router.post('/chat', async (req, res) => {
             // If no auth, continue without filtering (backward compatibility)
             console.log('No authentication provided, continuing without store filtering');
         }
+
+        // Get store name if user is an owner
+        let storeName = null;
+        if (userStore && userStore.role === 'owner' && userStore.store_id) {
+            try {
+                const { data: storeData, error } = await supabase
+                    .from('stores')
+                    .select('name')
+                    .eq('id', userStore.store_id)
+                    .single();
+                
+                if (!error && storeData) {
+                    storeName = storeData.name;
+                    console.log('Store name:', storeName);
+                }
+            } catch (storeError) {
+                console.error('Error fetching store name:', storeError);
+            }
+        }
         
         // Check if we have audio data
         if (!req.files || !req.files.audio) {
@@ -41,7 +60,8 @@ router.post('/chat', async (req, res) => {
         // Step 2: Send the transcribed text to the chat model for processing
         // Use the same context as the chat route (filtered by store for owners)
         const context = await buildChatContext(
-            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null
+            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null,
+            storeName
         );
         const fullMessage = `${context}\n\nUser: ${transcribedText}`;
         
