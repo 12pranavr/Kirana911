@@ -91,6 +91,7 @@ const AdminStores = () => {
         e.preventDefault();
         
         try {
+            console.log('handleSubmit called, editingStore:', editingStore);
             if (editingStore) {
                 // Update existing store
                 const storeData = {
@@ -100,7 +101,9 @@ const AdminStores = () => {
                     longitude: formData.longitude ? parseFloat(formData.longitude) : null
                 };
                 
+                console.log('Updating store with data:', storeData);
                 await storesService.updateStore(storeData);
+                console.log('Store updated successfully');
             } else {
                 // Create new store
                 const storeData = {
@@ -109,6 +112,7 @@ const AdminStores = () => {
                     longitude: formData.longitude ? parseFloat(formData.longitude) : null
                 };
                 
+                console.log('Creating store with data:', storeData);
                 const result = await storesService.createStore(storeData);
                 
                 // Show credentials to admin
@@ -137,6 +141,7 @@ const AdminStores = () => {
     };
 
     const handleEdit = (store) => {
+        console.log('handleEdit called with store:', store);
         setEditingStore(store);
         setFormData({
             name: store.name,
@@ -150,6 +155,7 @@ const AdminStores = () => {
             image_url: store.image_url || ''
         });
         setShowForm(true);
+        console.log('Edit form should now be visible');
     };
 
     const handleDelete = async (storeId) => {
@@ -167,6 +173,7 @@ const AdminStores = () => {
     };
 
     const handleCancel = () => {
+        console.log('handleCancel called');
         setFormData({
             name: '',
             email: '',
@@ -180,6 +187,7 @@ const AdminStores = () => {
         });
         setEditingStore(null);
         setShowForm(false);
+        console.log('Form closed');
     };
 
     // Function to detect and save location for a specific store
@@ -347,9 +355,18 @@ const AdminStores = () => {
             {/* Add/Edit Store Form */}
             {showForm && (
                 <div className="bg-white p-6 rounded-lg shadow-md">
-                    <h2 className="text-xl font-semibold mb-4">
-                        {editingStore ? 'Edit Store' : 'Add New Store'}
-                    </h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold">
+                            {editingStore ? 'Edit Store' : 'Add New Store'}
+                        </h2>
+                        <button 
+                            onClick={handleCancel}
+                            className="text-gray-500 hover:text-gray-700"
+                            title="Close Form"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -641,14 +658,19 @@ const AdminStores = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button
-                                                onClick={() => handleEdit(store)}
-                                                className="text-blue-600 hover:text-blue-900 mr-3"
+                                                onClick={() => {
+                                                    console.log('Edit button clicked for store:', store);
+                                                    handleEdit(store);
+                                                }}
+                                                className="text-blue-600 hover:text-blue-900 mr-3 p-1 rounded hover:bg-blue-100"
+                                                title="Edit Store"
                                             >
                                                 <Edit className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(store.id)}
-                                                className="text-red-600 hover:text-red-900"
+                                                className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100"
+                                                title="Delete Store"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </button>

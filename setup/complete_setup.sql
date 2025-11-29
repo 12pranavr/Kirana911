@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS budget (
 CREATE TABLE IF NOT EXISTS chat_logs (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references users(id),
+  store_id uuid references stores(id),
   message text,
   response text,
   timestamp timestamp with time zone default now()

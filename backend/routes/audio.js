@@ -9,6 +9,36 @@ router.post('/chat', async (req, res) => {
     try {
         console.log('=== Audio Chat Request ===');
         
+        // Get user's store information
+        let userStore = null;
+        try {
+            const getUserStore = require('../utils/getUserStore');
+            userStore = await getUserStore(req);
+            console.log('User store info:', userStore);
+        } catch (authError) {
+            // If no auth, continue without filtering (backward compatibility)
+            console.log('No authentication provided, continuing without store filtering');
+        }
+
+        // Get store name if user is an owner
+        let storeName = null;
+        if (userStore && userStore.role === 'owner' && userStore.store_id) {
+            try {
+                const { data: storeData, error } = await supabase
+                    .from('stores')
+                    .select('name')
+                    .eq('id', userStore.store_id)
+                    .single();
+                
+                if (!error && storeData) {
+                    storeName = storeData.name;
+                    console.log('Store name:', storeName);
+                }
+            } catch (storeError) {
+                console.error('Error fetching store name:', storeError);
+            }
+        }
+        
         // Check if we have audio data
         if (!req.files || !req.files.audio) {
             return res.status(400).json({ error: 'No audio file provided' });
@@ -28,8 +58,11 @@ router.post('/chat', async (req, res) => {
         console.log('Audio transcribed to text:', transcribedText);
 
         // Step 2: Send the transcribed text to the chat model for processing
-        // Use the same context as the chat route
-        const context = await buildChatContext();
+        // Use the same context as the chat route (filtered by store for owners)
+        const context = await buildChatContext(
+            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null,
+            storeName
+        );
         const fullMessage = `${context}\n\nUser: ${transcribedText}`;
         
         // Process with the chat model (same as chat route)
@@ -42,11 +75,12 @@ router.post('/chat', async (req, res) => {
         ]);
         console.log('Chat model response:', responseText);
 
-        // Save log
+        // Save log (with store_id)
         await supabase.from('chat_logs').insert([{
             message: `[Voice] ${transcribedText}`,
             response: responseText,
-            timestamp: new Date()
+            timestamp: new Date(),
+            store_id: userStore.store_id
         }]);
 
         console.log('=== Audio Chat Response Sent ===');

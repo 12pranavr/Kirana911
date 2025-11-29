@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import ChatWidget from './ChatWidget';
+import storesService from '../services/stores';
 
 const Layout = ({ children }) => {
     const location = useLocation();
@@ -29,6 +30,7 @@ const Layout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [userRole, setUserRole] = useState(null);
     const [userName, setUserName] = useState('');
+    const [storeInfo, setStoreInfo] = useState(null);
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -45,6 +47,16 @@ const Layout = ({ children }) => {
                     if (!error && userData) {
                         setUserRole(userData.role);
                         setUserName(userData.name || user.email);
+                        
+                        // If user is an owner, fetch store information
+                        if (userData.role === 'owner') {
+                            try {
+                                const storeData = await storesService.getCurrentUserStore();
+                                setStoreInfo(storeData);
+                            } catch (storeError) {
+                                console.error('Error fetching store data:', storeError);
+                            }
+                        }
                     }
                 }
             } catch (error) {
@@ -183,7 +195,7 @@ const Layout = ({ children }) => {
                     {children}
                 </main>
                 {/* Chat Widget */}
-                <ChatWidget />
+                <ChatWidget userName={userName} storeInfo={storeInfo} />
             </div>
 
             {/* Mobile sidebar overlay */}

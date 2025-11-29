@@ -1,24 +1,82 @@
 const supabase = require('./supabaseClient');
 
-async function buildChatContext() {
+async function buildChatContext(storeId = null, storeName = null) {
     try {
-        // Fetch low stock items
-        const { data: lowStock } = await supabase
-            .from('products')
-            .select('name, stock_levels(current_stock)')
-            .lt('stock_levels.current_stock', 10)
-            .limit(5);
+        // Fetch low stock items (filtered by store)
+        let lowStock = [];
+        try {
+            console.log('Fetching low stock items for store:', storeId);
+            let lowStockQuery = supabase
+                .from('products')
+                .select('name, stock_levels(current_stock)')
+                .lt('stock_levels.current_stock', 10)
+                .limit(5);
+            
+            if (storeId) {
+                lowStockQuery = lowStockQuery.eq('store_id', storeId);
+                console.log('Applying store filter for low stock items');
+            }
+            
+            const lowStockResult = await lowStockQuery;
+            lowStock = lowStockResult.data || [];
+            
+            // Debug: Log low stock items
+            console.log('Low stock items count:', lowStock.length);
+            if (lowStock.length > 0) {
+                console.log('Sample low stock items:', lowStock.slice(0, 3));
+            }
+        } catch (error) {
+            console.error('Error fetching low stock items:', error);
+        }
 
-        // Fetch recent sales (last 24 hours)
-        const twentyFourHoursAgo = new Date();
-        twentyFourHoursAgo.setDate(twentyFourHoursAgo.getDate() - 1);
-        
-        const { data: recentSales } = await supabase
-            .from('sales')
-            .select('products(name, cost_price), qty_sold, total_price, date')
-            .gte('date', twentyFourHoursAgo.toISOString())
-            .order('date', { ascending: false })
-            .limit(10);
+        // Fetch recent sales (last 24 hours) (filtered by store)
+        let recentSales = [];
+        try {
+            console.log('Fetching recent sales for store:', storeId);
+            const now = new Date();
+            const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000)); // Exactly 24 hours ago
+            
+            let recentSalesQuery = supabase
+                .from('sales')
+                .select('products(name, cost_price), qty_sold, total_price, date, store_id')
+                .gte('date', twentyFourHoursAgo.toISOString())
+                .order('date', { ascending: false })
+                .limit(10);
+                
+            if (storeId) {
+                recentSalesQuery = recentSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for recent sales');
+            }
+            
+            const recentSalesResult = await recentSalesQuery;
+            recentSales = recentSalesResult.data || [];
+            
+            // Debug: Log the date range being used
+            console.log('Sales date range:', twentyFourHoursAgo.toISOString(), 'to now');
+            console.log('Recent sales count:', recentSales.length);
+            if (recentSales.length > 0) {
+                console.log('First sale date:', recentSales[0].date);
+                console.log('Last sale date:', recentSales[recentSales.length - 1].date);
+            }
+            
+            // Also fetch all sales for broader context
+            let allSalesQuery = supabase
+                .from('sales')
+                .select('products(name, cost_price), qty_sold, total_price, date, store_id')
+                .order('date', { ascending: false })
+                .limit(50);
+                
+            if (storeId) {
+                allSalesQuery = allSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for all sales');
+            }
+            
+            const allSalesResult = await allSalesQuery;
+            const allSales = allSalesResult.data || [];
+            console.log('All sales count (unfiltered by date):', allSales.length);
+        } catch (error) {
+            console.error('Error fetching recent sales:', error);
+        }
 
         // Calculate today's total sales and profit
         let todaySales = 0;
@@ -34,18 +92,70 @@ async function buildChatContext() {
                     todayProfit += (revenue - cost);
                 }
             }
+            
+            // Debug: Show profit calculation details
+            console.log('Profit calculation:');
+            console.log('- Total sales revenue:', todaySales);
+            console.log('- Total profit:', todayProfit);
+            if (recentSales.length > 0) {
+                console.log('- Sample sale:', recentSales[0]);
+            }
         }
 
-        // Fetch top products by sales volume (manual grouping)
-        const { data: allRecentSales } = await supabase
-            .from('sales')
-            .select('products(name), qty_sold')
-            .gte('date', twentyFourHoursAgo.toISOString())
-            .order('date', { ascending: false });
+        // Fetch top products by sales volume (manual grouping) (filtered by store)
+        let allRecentSales = [];
+        try {
+            console.log('Fetching top products sales for store:', storeId);
+            let allRecentSalesQuery = supabase
+                .from('sales')
+                .select('products(name), qty_sold, store_id')
+                .gte('date', twentyFourHoursAgo.toISOString())
+                .order('date', { ascending: false });
+                
+            if (storeId) {
+                allRecentSalesQuery = allRecentSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for top products sales');
+            }
+            
+            const allRecentSalesResult = await allRecentSalesQuery;
+            allRecentSales = allRecentSalesResult.data || [];
+            
+            // Debug: Log the all recent sales count
+            console.log('All recent sales count:', allRecentSales.length);
+            
+            // Also fetch all sales for top products calculation (broader timeframe)
+            let broaderSalesQuery = supabase
+                .from('sales')
+                .select('products(name), qty_sold, store_id')
+                .order('date', { ascending: false })
+                .limit(200); // Larger sample for better top products analysis
+                
+            if (storeId) {
+                broaderSalesQuery = broaderSalesQuery.eq('store_id', storeId);
+                console.log('Applying store filter for broader sales');
+            }
+            
+            const broaderSalesResult = await broaderSalesQuery;
+            const broaderSales = broaderSalesResult.data || [];
+            console.log('Broader sales count (for top products):', broaderSales.length);
+        } catch (error) {
+            console.error('Error fetching all recent sales:', error);
+        }
 
         // Manually group and sum sales by product
         const productSalesMap = {};
-        if (allRecentSales) {
+        if (broaderSales && broaderSales.length > 0) {
+            // Use broader sales data for more accurate top products
+            broaderSales.forEach(sale => {
+                const productName = sale.products?.name || 'Unknown Product';
+                if (!productSalesMap[productName]) {
+                    productSalesMap[productName] = 0;
+                }
+                productSalesMap[productName] += sale.qty_sold;
+            });
+            console.log('Using broader sales data for top products calculation');
+        } else if (allRecentSales) {
+            // Fallback to recent sales if broader data is not available
             allRecentSales.forEach(sale => {
                 const productName = sale.products?.name || 'Unknown Product';
                 if (!productSalesMap[productName]) {
@@ -53,6 +163,7 @@ async function buildChatContext() {
                 }
                 productSalesMap[productName] += sale.qty_sold;
             });
+            console.log('Using recent sales data for top products calculation');
         }
 
         // Convert to array and sort by quantity sold
@@ -60,18 +171,57 @@ async function buildChatContext() {
             .map(([name, total_qty]) => ({ name, total_qty }))
             .sort((a, b) => b.total_qty - a.total_qty)
             .slice(0, 5);
+            
+        console.log('Top products calculated:', topProducts);
 
-        // Fetch customers data with purchase history
-        const { data: customersWithPurchases } = await supabase
-            .from('customers')
-            .select('name, email, role');
+        // Fetch customers data with purchase history (filtered by store)
+        let customersWithPurchases = [];
+        try {
+            console.log('Fetching customers for store:', storeId);
+            let customersQuery = supabase
+                .from('customers')
+                .select('name, email, role, store_id');
+                
+            if (storeId) {
+                customersQuery = customersQuery.eq('store_id', storeId);
+                console.log('Applying store filter for customers');
+            }
+            
+            const customersResult = await customersQuery;
+            customersWithPurchases = customersResult.data || [];
+            
+            // Debug: Log the customers count
+            console.log('Customers with purchases count:', customersWithPurchases.length);
+            if (customersWithPurchases.length > 0) {
+                console.log('Sample customers:', customersWithPurchases.slice(0, 3));
+            }
+        } catch (error) {
+            console.error('Error fetching customers:', error);
+        }
 
-        // Fetch sales with customer information to identify top customers
-        const { data: salesWithCustomers } = await supabase
-            .from('sales')
-            .select('customer_id, total_price, qty_sold, customers(name, email)')
-            .order('date', { ascending: false })
-            .limit(50);
+        // Fetch sales with customer information to identify top customers (filtered by store)
+        let salesWithCustomers = [];
+        try {
+            console.log('Fetching sales with customers for store:', storeId);
+            let salesWithCustomersQuery = supabase
+                .from('sales')
+                .select('customer_id, total_price, qty_sold, customers(name, email), store_id')
+                .order('date', { ascending: false })
+                .limit(50);
+                
+            if (storeId) {
+                salesWithCustomersQuery = salesWithCustomersQuery.eq('store_id', storeId);
+                console.log('Applying store filter for sales with customers');
+            }
+            
+            const salesWithCustomersResult = await salesWithCustomersQuery;
+            salesWithCustomers = salesWithCustomersResult.data || [];
+            
+            // Debug: Log the sales with customers count
+            console.log('Sales with customers count:', salesWithCustomers.length);
+        } catch (error) {
+            console.error('Error fetching sales with customers:', error);
+        }
 
         // Identify top customers by total spending
         const customerSpendingMap = {};
@@ -115,21 +265,79 @@ async function buildChatContext() {
             }));
         }
 
-        // Fetch products data
-        const { data: products } = await supabase
-            .from('products')
-            .select('name, category, selling_price, stock_levels(current_stock)')
-            .limit(20);
+        // Fetch products data (filtered by store)
+        let products = [];
+        try {
+            console.log('Fetching products for store:', storeId);
+            let productsQuery = supabase
+                .from('products')
+                .select('name, category, selling_price, stock_levels(current_stock), store_id')
+                .limit(20);
+                
+            if (storeId) {
+                productsQuery = productsQuery.eq('store_id', storeId);
+                console.log('Applying store filter for products');
+            }
+            
+            const productsResult = await productsQuery;
+            products = productsResult.data || [];
+        } catch (error) {
+            console.error('Error fetching products:', error);
+        }
 
-        // Fetch transactions data (last 10)
-        const { data: recentTransactions } = await supabase
-            .from('transactions')
-            .select('type, amount, category, note, date')
-            .order('date', { ascending: false })
-            .limit(10);
+        // Fetch transactions data (last 10) (filtered by store)
+        let recentTransactions = [];
+        try {
+            console.log('Fetching transactions for store:', storeId);
+            let transactionsQuery = supabase
+                .from('transactions')
+                .select('type, amount, category, note, date, store_id')
+                .order('date', { ascending: false })
+                .limit(10);
+                
+            if (storeId) {
+                transactionsQuery = transactionsQuery.eq('store_id', storeId);
+                console.log('Applying store filter for transactions');
+            }
+            
+            const transactionsResult = await transactionsQuery;
+            recentTransactions = transactionsResult.data || [];
+        } catch (error) {
+            console.error('Error fetching transactions:', error);
+        }
 
+        // Debug: Log context data
+        console.log('=== Chat Context Data ===');
+        console.log('Store ID:', storeId);
+        console.log('Today Sales:', todaySales);
+        console.log('Today Profit:', todayProfit);
+        console.log('Recent Sales Count:', recentSales ? recentSales.length : 0);
+        console.log('Top Products Count:', topProducts ? topProducts.length : 0);
+        console.log('Top Customers Count:', topCustomers ? topCustomers.length : 0);
+        console.log('Products Count:', products ? products.length : 0);
+        console.log('Transactions Count:', recentTransactions ? recentTransactions.length : 0);
+        
+        // Log sample data that will be sent to AI
+        console.log('=== Sample Data Sent to AI ===');
+        if (recentSales && recentSales.length > 0) {
+            console.log('Sample recent sales (first 2):', recentSales.slice(0, 2));
+        }
+        if (topProducts && topProducts.length > 0) {
+            console.log('Top products:', topProducts);
+        }
+        if (topCustomers && topCustomers.length > 0) {
+            console.log('Top customers:', topCustomers.slice(0, 2));
+        }
+        if (products && products.length > 0) {
+            console.log('Sample products (first 2):', products.slice(0, 2));
+        }
+        if (recentTransactions && recentTransactions.length > 0) {
+            console.log('Sample transactions (first 2):', recentTransactions.slice(0, 2));
+        }
+        
         const context = `
 You are KIRANA911 Assistant, a helpful shop manager AI with access to comprehensive shop data.
+${storeName ? `You are assisting the owner of ${storeName}.` : 'You are assisting a KIRANA911 user.'}
 
 Current Context:
 - Today's Date: ${new Date().toLocaleDateString()}

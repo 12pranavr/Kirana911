@@ -1,12 +1,28 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, Mic, MicOff } from 'lucide-react';
 import api from '../services/api';
 
-const ChatWidget = () => {
+const ChatWidget = ({ userName, storeInfo }) => {
+    console.log('ChatWidget props:', { userName, storeInfo });
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState([
-        { role: 'assistant', text: 'Hello! I am your KIRANA911 Assistant. How can I help you today?' }
-    ]);
+    const [messages, setMessages] = useState([]);
+    
+    // Initialize messages with personalized greeting
+    useEffect(() => {
+        let greeting = 'Hello! I am your KIRANA911 Assistant. How can I help you today?';
+        
+        if (userName) {
+            if (storeInfo && storeInfo.name) {
+                greeting = `Hello ${userName}! I am your KIRANA911 Assistant for ${storeInfo.name}. How can I help you today?`;
+            } else {
+                greeting = `Hello ${userName}! I am your KIRANA911 Assistant. How can I help you today?`;
+            }
+        }
+        
+        setMessages([
+            { role: 'assistant', text: greeting }
+        ]);
+    }, [userName, storeInfo]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [isListening, setIsListening] = useState(false);
@@ -36,7 +52,9 @@ const ChatWidget = () => {
             const botMsg = { role: 'assistant', text: res.data.response };
             setMessages(prev => [...prev, botMsg]);
         } catch (error) {
-            setMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong.' }]);
+            console.error('Chat error:', error);
+            const errorMessage = error.response?.data?.error || 'Sorry, something went wrong.';
+            setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
         } finally {
             setLoading(false);
         }
@@ -81,28 +99,23 @@ const ChatWidget = () => {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.webm');
 
-            const res = await fetch('/api/audio/chat', {
-                method: 'POST',
-                body: formData
+            const res = await api.post('/audio/chat', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
             });
 
-            const data = await res.json();
+            const data = res.data;
 
-            if (res.ok) {
+            if (res.status >= 200 && res.status < 300) {
                 const botMsg = { role: 'assistant', text: data.response };
                 setMessages(prev => [...prev, botMsg]);
                 
                 // Try to convert response to speech
                 try {
-                    const ttsRes = await fetch('/api/audio/tts', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ text: data.response })
-                    });
+                    const ttsRes = await api.post('/audio/tts', { text: data.response });
                     
-                    const ttsData = await ttsRes.json();
+                    const ttsData = ttsRes.data;
                     console.log('TTS response:', ttsData);
                     // In a full implementation, we would play the audio here
                 } catch (ttsError) {
@@ -113,7 +126,8 @@ const ChatWidget = () => {
             }
         } catch (error) {
             console.error('Error sending audio:', error);
-            setMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong with your voice message.' }]);
+            const errorMessage = error.response?.data?.error || 'Sorry, something went wrong with your voice message.';
+            setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
         } finally {
             setLoading(false);
         }
@@ -193,6 +207,11 @@ const ChatWidget = () => {
             )}
         </div>
     );
+};
+
+ChatWidget.defaultProps = {
+    userName: '',
+    storeInfo: null
 };
 
 export default ChatWidget;
