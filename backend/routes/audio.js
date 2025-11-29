@@ -16,8 +16,8 @@ router.post('/chat', async (req, res) => {
             userStore = await getUserStore(req);
             console.log('User store info:', userStore);
         } catch (authError) {
-            console.error('Authentication error:', authError);
-            return res.status(401).json({ error: 'Authentication required' });
+            // If no auth, continue without filtering (backward compatibility)
+            console.log('No authentication provided, continuing without store filtering');
         }
         
         // Check if we have audio data
@@ -39,8 +39,10 @@ router.post('/chat', async (req, res) => {
         console.log('Audio transcribed to text:', transcribedText);
 
         // Step 2: Send the transcribed text to the chat model for processing
-        // Use the same context as the chat route (filtered by store)
-        const context = await buildChatContext(userStore.store_id);
+        // Use the same context as the chat route (filtered by store for owners)
+        const context = await buildChatContext(
+            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null
+        );
         const fullMessage = `${context}\n\nUser: ${transcribedText}`;
         
         // Process with the chat model (same as chat route)

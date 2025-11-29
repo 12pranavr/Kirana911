@@ -36,7 +36,9 @@ const ChatWidget = () => {
             const botMsg = { role: 'assistant', text: res.data.response };
             setMessages(prev => [...prev, botMsg]);
         } catch (error) {
-            setMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong.' }]);
+            console.error('Chat error:', error);
+            const errorMessage = error.response?.data?.error || 'Sorry, something went wrong.';
+            setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
         } finally {
             setLoading(false);
         }
@@ -81,28 +83,23 @@ const ChatWidget = () => {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.webm');
 
-            const res = await fetch('/api/audio/chat', {
-                method: 'POST',
-                body: formData
+            const res = await api.post('/audio/chat', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
             });
 
-            const data = await res.json();
+            const data = res.data;
 
-            if (res.ok) {
+            if (res.status >= 200 && res.status < 300) {
                 const botMsg = { role: 'assistant', text: data.response };
                 setMessages(prev => [...prev, botMsg]);
                 
                 // Try to convert response to speech
                 try {
-                    const ttsRes = await fetch('/api/audio/tts', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ text: data.response })
-                    });
+                    const ttsRes = await api.post('/audio/tts', { text: data.response });
                     
-                    const ttsData = await ttsRes.json();
+                    const ttsData = ttsRes.data;
                     console.log('TTS response:', ttsData);
                     // In a full implementation, we would play the audio here
                 } catch (ttsError) {
@@ -113,7 +110,8 @@ const ChatWidget = () => {
             }
         } catch (error) {
             console.error('Error sending audio:', error);
-            setMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong with your voice message.' }]);
+            const errorMessage = error.response?.data?.error || 'Sorry, something went wrong with your voice message.';
+            setMessages(prev => [...prev, { role: 'assistant', text: errorMessage }]);
         } finally {
             setLoading(false);
         }

@@ -19,12 +19,14 @@ router.post('/', async (req, res) => {
             userStore = await getUserStore(req);
             console.log('User store info:', userStore);
         } catch (authError) {
-            console.error('Authentication error:', authError);
-            return res.status(401).json({ error: 'Authentication required' });
+            // If no auth, continue without filtering (backward compatibility)
+            console.log('No authentication provided, continuing without store filtering');
         }
 
-        // 1. Build context (filtered by store)
-        const context = await buildChatContext(userStore.store_id);
+        // 1. Build context (filtered by store for owners)
+        const context = await buildChatContext(
+            userStore && userStore.role === 'owner' && userStore.store_id ? userStore.store_id : null
+        );
         const fullMessage = `${context}\n\nUser: ${message}`;
 
         // 2. Call Gemini
