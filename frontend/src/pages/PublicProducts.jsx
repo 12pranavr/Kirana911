@@ -228,7 +228,7 @@ const PublicProducts = () => {
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <header className="bg-white shadow">
+            <header className="bg-white shadow sticky top-0 z-50">
                 <div className="container mx-auto px-4 py-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <Store className="w-6 h-6 text-blue-600" />
