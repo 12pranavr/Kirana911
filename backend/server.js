@@ -14,7 +14,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     // Get allowed origins from environment variable or use defaults
-    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000,https://kirana911-drzfcpdzb-12pranavrs-projects.vercel.app';
+    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://localhost:3000,https://kirana911.vercel.app/';
     const allowedOrigins = allowedOriginsEnv.split(',');
     
     // Check if the origin is in our allowed list
